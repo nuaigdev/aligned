@@ -93,17 +93,17 @@ export default function TicketsBoard({
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', background: 'var(--bg-tertiary)', borderRadius: '8px', padding: '3px' }}>
-          <button onClick={() => setView('board')} title="Board" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'board' ? 'var(--bg-primary)' : 'transparent', color: view === 'board' ? '#534AB7' : 'var(--text-tertiary)', display: 'flex' }}>
+          <button onClick={() => setView('board')} title="Board" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'board' ? 'var(--bg-primary)' : 'transparent', color: view === 'board' ? '#EA580C' : 'var(--text-tertiary)', display: 'flex' }}>
             <LayoutGrid size={14} />
           </button>
-          <button onClick={() => setView('list')} title="List" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'list' ? 'var(--bg-primary)' : 'transparent', color: view === 'list' ? '#534AB7' : 'var(--text-tertiary)', display: 'flex' }}>
+          <button onClick={() => setView('list')} title="List" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'list' ? 'var(--bg-primary)' : 'transparent', color: view === 'list' ? '#EA580C' : 'var(--text-tertiary)', display: 'flex' }}>
             <ListIcon size={14} />
           </button>
         </div>
 
         <button
           onClick={() => setShowNew(true)}
-          style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#534AB7', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
+          style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#EA580C', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
         >
           + New ticket
         </button>

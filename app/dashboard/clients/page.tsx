@@ -23,7 +23,7 @@ export default async function ClientsPage() {
             display: 'inline-flex',
             alignItems: 'center',
             padding: '7px 14px',
-            background: '#534AB7',
+            background: '#EA580C',
             color: '#fff',
             borderRadius: '8px',
             fontSize: '13px',
@@ -98,7 +98,7 @@ export default async function ClientsPage() {
             borderRadius: '10px',
           }}>
             <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>No clients yet</div>
-            <Link href="/dashboard/clients/new" style={{ fontSize: '13px', color: '#534AB7', textDecoration: 'none' }}>
+            <Link href="/dashboard/clients/new" style={{ fontSize: '13px', color: '#EA580C', textDecoration: 'none' }}>
               Add your first client →
             </Link>
           </div>

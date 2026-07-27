@@ -29,7 +29,7 @@ export default async function PortalProjectOverviewPage({ params }: { params: { 
 
   const MILESTONE_DOT: Record<string, string> = {
     completed:        '#3B6D11',
-    awaiting_signoff: '#534AB7',
+    awaiting_signoff: '#EA580C',
     in_progress:      '#185FA5',
     not_started:      '#B4B2A9',
     reopened:         '#993C1D',
@@ -39,15 +39,15 @@ export default async function PortalProjectOverviewPage({ params }: { params: { 
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {(pendingApprovals?.length ?? 0) > 0 && (
         <div style={{
-          background: 'var(--brand-50)', border: '0.5px solid #AFA9EC', borderRadius: '10px',
+          background: 'var(--brand-50)', border: '0.5px solid #FED7AA', borderRadius: '10px',
           padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: '10px',
         }}>
-          <div style={{ fontSize: '16px', color: '#534AB7', marginTop: '1px' }}>✉</div>
+          <div style={{ fontSize: '16px', color: '#EA580C', marginTop: '1px' }}>✉</div>
           <div>
             <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--brand-800)' }}>
               {pendingApprovals!.length} item{pendingApprovals!.length > 1 ? 's' : ''} awaiting your sign-off
             </div>
-            <div style={{ fontSize: '12px', color: '#534AB7', marginTop: '3px', lineHeight: 1.5 }}>
+            <div style={{ fontSize: '12px', color: '#EA580C', marginTop: '3px', lineHeight: 1.5 }}>
               Approval links have been sent to your registered contacts. Please check your email to review and sign. You cannot sign from this page.
             </div>
           </div>
@@ -74,7 +74,7 @@ export default async function PortalProjectOverviewPage({ params }: { params: { 
           <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>{progress}%</span>
         </div>
         <div style={{ height: '6px', background: 'var(--bg-primary)', borderRadius: '3px', overflow: 'hidden', marginBottom: '10px' }}>
-          <div style={{ height: '100%', width: `${progress}%`, background: '#534AB7', borderRadius: '3px', transition: 'width .3s' }} />
+          <div style={{ height: '100%', width: `${progress}%`, background: '#EA580C', borderRadius: '3px', transition: 'width .3s' }} />
         </div>
         <div style={{ display: 'flex', gap: '3px' }}>
           {PHASES.map(phase => {
@@ -99,7 +99,7 @@ export default async function PortalProjectOverviewPage({ params }: { params: { 
           <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Milestone tracker
           </div>
-          <Link href={`/portal/projects/${project.id}/milestones`} style={{ fontSize: '12px', color: '#534AB7', textDecoration: 'none' }}>
+          <Link href={`/portal/projects/${project.id}/milestones`} style={{ fontSize: '12px', color: '#EA580C', textDecoration: 'none' }}>
             View all →
           </Link>
         </div>
@@ -122,7 +122,7 @@ export default async function PortalProjectOverviewPage({ params }: { params: { 
                 </div>
                 <div style={{
                   flex: 1, background: 'var(--bg-primary)',
-                  border: isAwaiting ? '0.5px solid #AFA9EC' : '0.5px solid var(--border-default)',
+                  border: isAwaiting ? '0.5px solid #FED7AA' : '0.5px solid var(--border-default)',
                   borderRadius: '8px', padding: '8px 12px', marginBottom: '3px',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -165,7 +165,7 @@ export default async function PortalProjectOverviewPage({ params }: { params: { 
           <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Recent decisions
           </div>
-          <Link href={`/portal/projects/${project.id}/decisions`} style={{ fontSize: '12px', color: '#534AB7', textDecoration: 'none' }}>
+          <Link href={`/portal/projects/${project.id}/decisions`} style={{ fontSize: '12px', color: '#EA580C', textDecoration: 'none' }}>
             View all →
           </Link>
         </div>

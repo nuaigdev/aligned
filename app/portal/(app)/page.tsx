@@ -48,7 +48,7 @@ export default async function PortalHubPage() {
           <Link
             href="/portal/tickets/new"
             style={{
-              fontSize: '13px', fontWeight: 500, color: '#fff', background: '#534AB7',
+              fontSize: '13px', fontWeight: 500, color: '#fff', background: '#EA580C',
               padding: '8px 14px', borderRadius: '8px', textDecoration: 'none',
             }}
           >

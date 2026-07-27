@@ -103,7 +103,7 @@ export default function ClientAccessManager({
           <button
             onClick={handleIssue}
             disabled={busy}
-            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 12px', border: 'none', borderRadius: '7px', background: '#534AB7', color: '#fff', fontSize: '12px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '8px 12px', border: 'none', borderRadius: '7px', background: '#EA580C', color: '#fff', fontSize: '12px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             <KeyRound size={12} /> {initialLoginId ? 'Reset password' : 'Create login'}
           </button>

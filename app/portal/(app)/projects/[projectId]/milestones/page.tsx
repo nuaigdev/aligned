@@ -12,7 +12,7 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }
 
 const DOT_COLOR: Record<string, string> = {
   completed:        '#3B6D11',
-  awaiting_signoff: '#534AB7',
+  awaiting_signoff: '#EA580C',
   in_progress:      '#185FA5',
   not_started:      '#B4B2A9',
   reopened:         '#993C1D',
@@ -97,14 +97,14 @@ export default async function PortalMilestonesPage({ params }: { params: { proje
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '6px', flexShrink: 0, width: '16px' }}>
                       <div style={{
                         width: '12px', height: '12px', borderRadius: '50%', background: dotColor, flexShrink: 0,
-                        border: ms.status === 'awaiting_signoff' ? '2px solid #534AB7' : 'none', boxSizing: 'border-box',
+                        border: ms.status === 'awaiting_signoff' ? '2px solid #EA580C' : 'none', boxSizing: 'border-box',
                       }} />
                       {!isLast && <div style={{ width: '1px', flex: 1, minHeight: '24px', background: 'var(--border-default)', marginTop: '3px' }} />}
                     </div>
 
                     <div style={{
                       flex: 1, background: 'var(--bg-primary)',
-                      border: isAwaiting ? '0.5px solid #AFA9EC' : '0.5px solid var(--border-default)',
+                      border: isAwaiting ? '0.5px solid #FED7AA' : '0.5px solid var(--border-default)',
                       borderRadius: '10px', padding: '12px 14px', marginBottom: isLast ? '0' : '6px',
                     }}>
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '6px' }}>

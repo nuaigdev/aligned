@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  /* Brand */
-  --brand-50:  #EEEDFE;
-  --brand-100: #CECBF6;
-  --brand-200: #AFA9EC;
-  --brand-400: #7F77DD;
-  --brand-600: #534AB7;
-  --brand-800: #3C3489;
-  --brand-900: #26215C;
+  /* Brand — orange, from logo.png. Light mode only, no dark variant. */
+  --brand-50:  #FFF7ED;
+  --brand-100: #FFEDD5;
+  --brand-200: #FED7AA;
+  --brand-400: #FB923C;
+  --brand-600: #EA580C;
+  --brand-800: #9A3412;
+  --brand-900: #7C2D12;
 
   /* Neutrals */
   --gray-50:  #F9F9F8;
@@ -45,31 +45,6 @@
   --info-text:    #0C447C;
 }
 
-[data-theme="dark"] {
-  --brand-50:  rgba(83, 74, 183, 0.2);
-  --brand-800: #A9A3F0;
-
-  --bg-primary:   #1E1D1C;
-  --bg-secondary: #161514;
-  --bg-tertiary:  #111010;
-
-  --text-primary:   #EEECEA;
-  --text-secondary: #9A9892;
-  --text-tertiary:  #6A6862;
-
-  --border-default: rgba(255,255,255,0.08);
-  --border-medium:  rgba(255,255,255,0.14);
-
-  --success-bg:   rgba(59, 109, 17, 0.18);
-  --success-text: #8DC958;
-  --warning-bg:   rgba(186, 117, 23, 0.18);
-  --warning-text: #F0A94A;
-  --danger-bg:    rgba(163, 45, 45, 0.18);
-  --danger-text:  #E07070;
-  --info-bg:      rgba(12, 68, 124, 0.18);
-  --info-text:    #5BADEE;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -85,19 +60,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode native controls */
-[data-theme="dark"] {
-  color-scheme: dark;
-}
-
-/* Autofill override for dark mode */
-[data-theme="dark"] input:-webkit-autofill,
-[data-theme="dark"] input:-webkit-autofill:hover,
-[data-theme="dark"] input:-webkit-autofill:focus {
-  -webkit-box-shadow: 0 0 0 1000px #1E1D1C inset;
-  -webkit-text-fill-color: #EEECEA;
-}
-
 /* Scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
@@ -109,9 +71,6 @@ body {
 ::-webkit-scrollbar-thumb {
   background: var(--gray-200);
   border-radius: 3px;
-}
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: var(--gray-800);
 }
 
 /* Focus ring */

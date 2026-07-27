@@ -48,7 +48,7 @@ export default async function PortalDecisionsPage({ params }: { params: { projec
             }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
                 <div style={{
-                  fontSize: '11px', fontWeight: 500, color: '#534AB7', background: 'var(--brand-50)',
+                  fontSize: '11px', fontWeight: 500, color: '#EA580C', background: 'var(--brand-50)',
                   padding: '3px 8px', borderRadius: '6px', flexShrink: 0, marginTop: '2px', fontFamily: 'monospace',
                 }}>
                   {formatDecisionRef(dec.ref_number)}

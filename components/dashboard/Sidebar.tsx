@@ -6,8 +6,8 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { getInitials } from '@/lib/utils'
 import { LayoutDashboard, FolderOpen, Users, LogOut, Ticket } from 'lucide-react'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import NotificationBell from './NotificationBell'
+import { Logo } from '@/components/Logo'
 
 interface Props {
   member: { name: string; email: string; role: string } | null
@@ -46,10 +46,8 @@ export default function DashboardSidebar({ member }: Props) {
         padding: '18px 16px 14px',
         borderBottom: '0.5px solid var(--border-default)',
       }}>
-        <div style={{ fontSize: '16px', fontWeight: 600, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-          <span style={{ color: '#534AB7' }}>Aligned</span>
-        </div>
-        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>NuAIg</div>
+        <Logo size={26} wordmarkSize={16} />
+        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>NuAIg</div>
       </div>
 
       {/* Nav */}
@@ -68,7 +66,7 @@ export default function DashboardSidebar({ member }: Props) {
                 borderRadius: '7px',
                 fontSize: '13px',
                 fontWeight: active ? 500 : 400,
-                color: active ? '#534AB7' : 'var(--text-secondary)',
+                color: active ? '#EA580C' : 'var(--text-secondary)',
                 background: active ? 'var(--brand-50)' : 'transparent',
                 textDecoration: 'none',
                 marginBottom: '2px',
@@ -113,7 +111,6 @@ export default function DashboardSidebar({ member }: Props) {
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{member.role}</div>
           </div>
           <NotificationBell />
-          <ThemeToggle />
           <button
             onClick={handleSignOut}
             title="Sign out"

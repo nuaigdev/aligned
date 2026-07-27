@@ -41,7 +41,7 @@ export default function NewClientPage() {
     <div style={{ maxWidth: '480px' }}>
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '12px', color: '#888780', marginBottom: '6px' }}>
-          <Link href="/dashboard/clients" style={{ color: '#534AB7', textDecoration: 'none' }}>Clients</Link>
+          <Link href="/dashboard/clients" style={{ color: '#EA580C', textDecoration: 'none' }}>Clients</Link>
           {' / New'}
         </div>
         <h1 style={{ fontSize: '22px', fontWeight: 500, color: '#1a1918', margin: 0 }}>New client</h1>
@@ -110,7 +110,7 @@ export default function NewClientPage() {
               disabled={loading || !name.trim()}
               style={{
                 padding: '8px 18px',
-                background: loading || !name.trim() ? '#AFA9EC' : '#534AB7',
+                background: loading || !name.trim() ? '#FED7AA' : '#EA580C',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '8px',

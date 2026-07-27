@@ -87,7 +87,7 @@ export default function ContactsManager({
           onClick={() => { setShowForm(v => !v); setForm({ name: '', email: '' }); setError(null) }}
           style={{
             padding: '5px 12px',
-            background: showForm ? 'var(--bg-primary)' : '#534AB7',
+            background: showForm ? 'var(--bg-primary)' : '#EA580C',
             color: showForm ? 'var(--text-secondary)' : '#fff',
             border: showForm ? '0.5px solid var(--border-default)' : 'none',
             borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
@@ -141,7 +141,7 @@ export default function ContactsManager({
                 disabled={saving || !form.name.trim() || !form.email.trim()}
                 style={{
                   padding: '6px 14px',
-                  background: saving || !form.name.trim() || !form.email.trim() ? '#AFA9EC' : '#534AB7',
+                  background: saving || !form.name.trim() || !form.email.trim() ? '#FED7AA' : '#EA580C',
                   color: '#fff', border: 'none', borderRadius: '7px',
                   fontSize: '12px', fontWeight: 500,
                   cursor: saving || !form.name.trim() || !form.email.trim() ? 'not-allowed' : 'pointer',

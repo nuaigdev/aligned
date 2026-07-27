@@ -58,9 +58,9 @@ export default function DocumentsPortalPanel({
     fontSize: '12px',
     fontWeight: active ? 500 : 400,
     cursor: 'pointer',
-    border: active ? '0.5px solid #534AB7' : '0.5px solid rgba(0,0,0,0.12)',
-    background: active ? '#EEEDFE' : '#fff',
-    color: active ? '#534AB7' : '#5F5E5A',
+    border: active ? '0.5px solid #EA580C' : '0.5px solid rgba(0,0,0,0.12)',
+    background: active ? '#FFF7ED' : '#fff',
+    color: active ? '#EA580C' : '#5F5E5A',
   })
 
   return (
@@ -144,7 +144,7 @@ export default function DocumentsPortalPanel({
                         style={{
                           fontSize: '12px', padding: '4px 10px', borderRadius: '6px',
                           border: '0.5px solid rgba(0,0,0,0.12)', background: '#fff',
-                          color: '#534AB7', cursor: 'pointer', fontWeight: 500,
+                          color: '#EA580C', cursor: 'pointer', fontWeight: 500,
                           textDecoration: 'none', flexShrink: 0,
                         }}
                       >

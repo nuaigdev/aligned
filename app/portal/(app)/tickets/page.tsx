@@ -27,7 +27,7 @@ export default async function PortalTicketsPage({ searchParams }: { searchParams
             </Link>
           ))}
         </div>
-        <Link href="/portal/tickets/new" style={{ fontSize: '13px', fontWeight: 500, color: '#fff', background: '#534AB7', padding: '8px 14px', borderRadius: '8px', textDecoration: 'none' }}>
+        <Link href="/portal/tickets/new" style={{ fontSize: '13px', fontWeight: 500, color: '#fff', background: '#EA580C', padding: '8px 14px', borderRadius: '8px', textDecoration: 'none' }}>
           + New ticket
         </Link>
       </div>
@@ -66,6 +66,6 @@ function chipStyle(active: boolean): React.CSSProperties {
   return {
     fontSize: '12px', fontWeight: active ? 500 : 400, padding: '6px 12px', borderRadius: '8px', textDecoration: 'none',
     background: active ? 'var(--brand-50)' : 'var(--bg-tertiary)',
-    color: active ? '#534AB7' : 'var(--text-secondary)',
+    color: active ? '#EA580C' : 'var(--text-secondary)',
   }
 }

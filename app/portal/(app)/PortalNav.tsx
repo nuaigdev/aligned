@@ -35,7 +35,7 @@ export default function PortalNav() {
               padding: '10px 14px',
               fontSize: '13px',
               fontWeight: isActive ? 500 : 400,
-              color: isActive ? '#534AB7' : 'var(--text-secondary)',
+              color: isActive ? '#EA580C' : 'var(--text-secondary)',
               textDecoration: 'none',
             }}
           >
@@ -45,7 +45,7 @@ export default function PortalNav() {
                 layoutId="portal-nav-underline"
                 style={{
                   position: 'absolute', left: 0, right: 0, bottom: '-1px', height: '2px',
-                  background: '#534AB7',
+                  background: '#EA580C',
                 }}
                 transition={{ type: 'spring', stiffness: 500, damping: 40 }}
               />

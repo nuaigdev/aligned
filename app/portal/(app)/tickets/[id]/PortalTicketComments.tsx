@@ -103,7 +103,7 @@ export default function PortalTicketComments({
           <button
             onClick={handleSubmit}
             disabled={busy || !body.trim()}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', border: 'none', borderRadius: '8px', background: '#534AB7', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer', opacity: busy ? 0.7 : 1 }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', border: 'none', borderRadius: '8px', background: '#EA580C', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer', opacity: busy ? 0.7 : 1 }}
           >
             <Send size={13} /> {busy ? 'Sending…' : 'Send reply'}
           </button>

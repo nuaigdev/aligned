@@ -162,7 +162,7 @@ export default function MilestonesPanel({
           onClick={() => { setShowForm(v => !v); setForm(emptyForm) }}
           style={{
             padding: '7px 14px',
-            background: showForm ? 'var(--bg-primary)' : '#534AB7',
+            background: showForm ? 'var(--bg-primary)' : '#EA580C',
             color: showForm ? 'var(--text-secondary)' : '#fff',
             border: showForm ? '0.5px solid var(--border-default)' : 'none',
             borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
@@ -209,7 +209,7 @@ export default function MilestonesPanel({
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
               <button type="button" onClick={() => setShowForm(false)} style={{ padding: '7px 14px', border: '0.5px solid var(--border-medium)', borderRadius: '7px', fontSize: '13px', color: 'var(--text-secondary)', background: 'var(--bg-primary)', cursor: 'pointer' }}>Cancel</button>
-              <button type="submit" disabled={saving || !form.title.trim()} style={{ padding: '7px 16px', background: saving || !form.title.trim() ? '#AFA9EC' : '#534AB7', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '13px', fontWeight: 500, cursor: saving || !form.title.trim() ? 'not-allowed' : 'pointer' }}>
+              <button type="submit" disabled={saving || !form.title.trim()} style={{ padding: '7px 16px', background: saving || !form.title.trim() ? '#FED7AA' : '#EA580C', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '13px', fontWeight: 500, cursor: saving || !form.title.trim() ? 'not-allowed' : 'pointer' }}>
                 {saving ? 'Adding…' : 'Add milestone'}
               </button>
             </div>
@@ -253,8 +253,8 @@ export default function MilestonesPanel({
                         onClick={() => openSendModal(m)}
                         style={{
                           fontSize: '11px', padding: '3px 9px', borderRadius: '6px',
-                          border: '0.5px solid #534AB7', background: 'var(--bg-primary)',
-                          color: '#534AB7', cursor: 'pointer', fontWeight: 500,
+                          border: '0.5px solid #EA580C', background: 'var(--bg-primary)',
+                          color: '#EA580C', cursor: 'pointer', fontWeight: 500,
                         }}
                       >
                         Send for sign-off
@@ -284,7 +284,7 @@ export default function MilestonesPanel({
         {initialMilestones.length === 0 && !showForm && (
           <div style={{ padding: '48px 32px', textAlign: 'center', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>No milestones yet</div>
-            <button onClick={() => setShowForm(true)} style={{ fontSize: '13px', color: '#534AB7', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+            <button onClick={() => setShowForm(true)} style={{ fontSize: '13px', color: '#EA580C', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
               Add the first milestone →
             </button>
           </div>
@@ -316,7 +316,7 @@ export default function MilestonesPanel({
                     style={{
                       display: 'flex', alignItems: 'center', gap: '10px',
                       padding: '9px 12px', background: selectedContacts.has(c.id) ? 'var(--brand-50)' : 'var(--bg-secondary)',
-                      border: selectedContacts.has(c.id) ? '0.5px solid #AFA9EC' : '0.5px solid var(--border-default)',
+                      border: selectedContacts.has(c.id) ? '0.5px solid #FED7AA' : '0.5px solid var(--border-default)',
                       borderRadius: '8px', cursor: 'pointer',
                     }}
                   >
@@ -324,7 +324,7 @@ export default function MilestonesPanel({
                       type="checkbox"
                       checked={selectedContacts.has(c.id)}
                       onChange={() => toggleContact(c.id)}
-                      style={{ accentColor: '#534AB7', width: '14px', height: '14px', cursor: 'pointer' }}
+                      style={{ accentColor: '#EA580C', width: '14px', height: '14px', cursor: 'pointer' }}
                     />
                     <div style={{ flex: 1 }}>
                       <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{c.name}</div>
@@ -353,7 +353,7 @@ export default function MilestonesPanel({
                 disabled={sending || selectedContacts.size === 0 || contacts.length === 0}
                 style={{
                   padding: '7px 16px',
-                  background: sending || selectedContacts.size === 0 || contacts.length === 0 ? '#AFA9EC' : '#534AB7',
+                  background: sending || selectedContacts.size === 0 || contacts.length === 0 ? '#FED7AA' : '#EA580C',
                   color: '#fff', border: 'none', borderRadius: '7px',
                   fontSize: '13px', fontWeight: 500,
                   cursor: sending || selectedContacts.size === 0 || contacts.length === 0 ? 'not-allowed' : 'pointer',

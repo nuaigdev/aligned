@@ -158,9 +158,9 @@ export default function NewTicketModal({
                   key={p} type="button" onClick={() => setPriority(p)}
                   style={{
                     flex: 1, padding: '7px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, textTransform: 'capitalize', cursor: 'pointer',
-                    border: priority === p ? '1px solid #534AB7' : '0.5px solid var(--border-medium)',
+                    border: priority === p ? '1px solid #EA580C' : '0.5px solid var(--border-medium)',
                     background: priority === p ? 'var(--brand-50)' : 'var(--bg-primary)',
-                    color: priority === p ? '#534AB7' : 'var(--text-secondary)',
+                    color: priority === p ? '#EA580C' : 'var(--text-secondary)',
                   }}
                 >
                   {p}
@@ -204,7 +204,7 @@ export default function NewTicketModal({
                           {getInitials(p.name)}
                         </div>
                         <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)' }}>{p.name}</span>
-                        {selected && <Check size={13} color="#534AB7" />}
+                        {selected && <Check size={13} color="#EA580C" />}
                       </button>
                     )
                   })
@@ -219,7 +219,7 @@ export default function NewTicketModal({
             </button>
             <button
               onClick={handleSave} disabled={saving || !title.trim() || !clientId}
-              style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#534AB7', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}
+              style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#EA580C', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}
             >
               {saving ? 'Creating…' : 'Create ticket'}
             </button>

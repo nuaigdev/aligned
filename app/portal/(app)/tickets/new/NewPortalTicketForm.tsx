@@ -108,7 +108,7 @@ export default function NewPortalTicketForm({
       <button
         type="submit"
         disabled={saving}
-        style={{ padding: '10px', border: 'none', borderRadius: '8px', background: saving ? '#AFA9EC' : '#534AB7', color: '#fff', fontSize: '14px', fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', marginTop: '4px' }}
+        style={{ padding: '10px', border: 'none', borderRadius: '8px', background: saving ? '#FED7AA' : '#EA580C', color: '#fff', fontSize: '14px', fontWeight: 500, cursor: saving ? 'not-allowed' : 'pointer', marginTop: '4px' }}
       >
         {saving ? 'Submitting…' : 'Submit ticket'}
       </button>

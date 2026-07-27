@@ -119,9 +119,9 @@ export default function TicketDetail({
           {([null, 'team', 'client'] as const).map(v => (
             <button key={v ?? 'none'} onClick={() => handleBlockedOnChange(v)} style={{
               fontSize: '11px', padding: '4px 10px', borderRadius: '10px', fontWeight: 500, cursor: 'pointer', textTransform: 'capitalize',
-              border: blockedOn === v ? '1px solid #534AB7' : '0.5px solid var(--border-default)',
+              border: blockedOn === v ? '1px solid #EA580C' : '0.5px solid var(--border-default)',
               background: blockedOn === v ? 'var(--brand-50)' : 'transparent',
-              color: blockedOn === v ? '#534AB7' : 'var(--text-tertiary)',
+              color: blockedOn === v ? '#EA580C' : 'var(--text-tertiary)',
             }}>
               {v ?? 'Neither'}
             </button>
@@ -132,7 +132,7 @@ export default function TicketDetail({
       <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Assignees</span>
-          <button onClick={() => setShowPicker(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#534AB7', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px' }}>
+          <button onClick={() => setShowPicker(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EA580C', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '12px' }}>
             <Plus size={12} /> Edit
           </button>
         </div>

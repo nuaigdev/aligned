@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { loginClient } from './actions'
+import { Logo } from '@/components/Logo'
 
 export default function PortalLoginForm() {
   const router = useRouter()
@@ -54,17 +55,9 @@ export default function PortalLoginForm() {
           padding: '36px 32px',
         }}
       >
-        <div style={{ marginBottom: '32px', textAlign: 'center' }}>
-          <div style={{
-            fontSize: '20px',
-            fontWeight: 600,
-            color: 'var(--text-primary)',
-            letterSpacing: '-0.02em',
-            marginBottom: '6px',
-          }}>
-            <span style={{ color: '#534AB7' }}>Aligned</span>
-          </div>
-          <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>Client portal</div>
+        <div style={{ marginBottom: '32px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <Logo size={36} wordmarkSize={20} />
+          <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '8px' }}>Client portal</div>
         </div>
 
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -138,7 +131,7 @@ export default function PortalLoginForm() {
             style={{
               width: '100%',
               padding: '10px',
-              background: loading ? '#AFA9EC' : '#534AB7',
+              background: loading ? '#FED7AA' : '#EA580C',
               color: '#fff',
               border: 'none',
               borderRadius: '8px',

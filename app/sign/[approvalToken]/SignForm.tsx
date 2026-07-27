@@ -210,7 +210,7 @@ export default function SignForm({
             padding: '10px',
             borderRadius: '8px',
             border: 'none',
-            background: loading ? '#AFA9EC' : '#534AB7',
+            background: loading ? '#FED7AA' : '#EA580C',
             color: '#fff',
             fontSize: '14px',
             fontWeight: 500,

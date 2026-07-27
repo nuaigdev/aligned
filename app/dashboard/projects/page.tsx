@@ -44,7 +44,7 @@ export default async function ProjectsPage() {
             alignItems: 'center',
             gap: '6px',
             padding: '7px 14px',
-            background: '#534AB7',
+            background: '#EA580C',
             color: '#fff',
             borderRadius: '8px',
             fontSize: '13px',
@@ -119,7 +119,7 @@ export default async function ProjectsPage() {
             <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>No projects yet</div>
             <Link
               href="/dashboard/projects/new"
-              style={{ fontSize: '13px', color: '#534AB7', textDecoration: 'none' }}
+              style={{ fontSize: '13px', color: '#EA580C', textDecoration: 'none' }}
             >
               Create your first project →
             </Link>

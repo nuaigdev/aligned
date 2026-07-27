@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { formatDateTime } from '@/lib/utils'
+import { Logo } from '@/components/Logo'
 import SignForm from './SignForm'
 
 export default async function SignPage({ params }: { params: { approvalToken: string } }) {
@@ -59,10 +60,9 @@ export default async function SignPage({ params }: { params: { approvalToken: st
 
           {/* Header */}
           <div style={{ padding: '20px 24px', borderBottom: '0.5px solid var(--border-default)' }}>
-            <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '10px' }}>
-              <span style={{ color: '#534AB7' }}>Aligned</span>
-              {' · '}
-              {projectName}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+              <Logo size={20} showWordmark={false} />
+              <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>{projectName}</span>
             </div>
             <div style={{
               display: 'inline-flex',
@@ -148,7 +148,7 @@ export default async function SignPage({ params }: { params: { approvalToken: st
                         {doc.file_type === 'pdf' ? '📄' : doc.file_type?.startsWith('image') ? '🖼' : '📎'}
                       </span>
                       <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-primary)' }}>{doc.name}</span>
-                      <span style={{ fontSize: '12px', color: '#534AB7', cursor: 'pointer' }}>View</span>
+                      <span style={{ fontSize: '12px', color: '#EA580C', cursor: 'pointer' }}>View</span>
                     </div>
                   ))}
                 </div>

@@ -89,7 +89,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>
-          <Link href="/dashboard/projects" style={{ color: '#534AB7', textDecoration: 'none' }}>Projects</Link>
+          <Link href="/dashboard/projects" style={{ color: '#EA580C', textDecoration: 'none' }}>Projects</Link>
           {' / '}
           {(project.clients as any)?.name}
         </div>
@@ -126,14 +126,14 @@ export default async function ProjectPage({ params }: { params: { projectId: str
         gap: '10px',
         marginBottom: '20px',
       }}>
-        <ExternalLink size={14} color="#534AB7" />
+        <ExternalLink size={14} color="#EA580C" />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '2px' }}>
             {client?.login_id ? 'Client logs in with' : 'No client login issued yet'}
           </div>
-          <div style={{ fontSize: '12px', color: '#534AB7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div style={{ fontSize: '12px', color: '#EA580C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {client?.login_id ?? (
-              <Link href={`/dashboard/clients/${client?.id}`} style={{ color: '#534AB7' }}>
+              <Link href={`/dashboard/clients/${client?.id}`} style={{ color: '#EA580C' }}>
                 Set one up on the client page →
               </Link>
             )}
@@ -164,7 +164,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
           <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>{progress}%</span>
         </div>
         <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${progress}%`, background: '#534AB7', borderRadius: '3px', transition: 'width .3s' }} />
+          <div style={{ height: '100%', width: `${progress}%`, background: '#EA580C', borderRadius: '3px', transition: 'width .3s' }} />
         </div>
       </div>
 
@@ -208,7 +208,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
             }}
           >
             <div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '14px', color: 'var(--text-tertiary)' }}>→</div>
-            <div style={{ fontSize: '22px', fontWeight: 500, color: '#534AB7', marginBottom: '2px' }}>{item.count}</div>
+            <div style={{ fontSize: '22px', fontWeight: 500, color: '#EA580C', marginBottom: '2px' }}>{item.count}</div>
             <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{item.label}</div>
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{item.subtitle}</div>
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>{item.desc}</div>

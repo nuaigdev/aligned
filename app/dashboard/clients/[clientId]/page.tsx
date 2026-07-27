@@ -55,7 +55,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
       {/* Header */}
       <div style={{ marginBottom: '28px' }}>
         <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>
-          <Link href="/dashboard/clients" style={{ color: '#534AB7', textDecoration: 'none' }}>Clients</Link>
+          <Link href="/dashboard/clients" style={{ color: '#EA580C', textDecoration: 'none' }}>Clients</Link>
         </div>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div>
@@ -70,7 +70,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
               display: 'inline-flex',
               alignItems: 'center',
               padding: '7px 14px',
-              background: '#534AB7',
+              background: '#EA580C',
               color: '#fff',
               borderRadius: '8px',
               fontSize: '13px',
@@ -135,7 +135,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
               <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>No projects yet</div>
               <Link
                 href={`/dashboard/projects/new?client=${client.id}`}
-                style={{ fontSize: '13px', color: '#534AB7', textDecoration: 'none' }}
+                style={{ fontSize: '13px', color: '#EA580C', textDecoration: 'none' }}
               >
                 Create first project →
               </Link>

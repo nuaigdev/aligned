@@ -109,7 +109,7 @@ export default function DocumentsPanel({
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         style={{
-          border: `1.5px dashed ${dragOver ? '#534AB7' : 'var(--border-medium)'}`,
+          border: `1.5px dashed ${dragOver ? '#EA580C' : 'var(--border-medium)'}`,
           borderRadius: '10px',
           padding: '28px',
           textAlign: 'center',
@@ -122,7 +122,7 @@ export default function DocumentsPanel({
       >
         <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileInput} />
         {uploading ? (
-          <div style={{ fontSize: '13px', color: '#534AB7' }}>Uploading…</div>
+          <div style={{ fontSize: '13px', color: '#EA580C' }}>Uploading…</div>
         ) : (
           <>
             <div style={{ fontSize: '22px', marginBottom: '8px' }}>📁</div>
@@ -158,7 +158,7 @@ export default function DocumentsPanel({
               <button
                 onClick={() => handleDownload(doc)}
                 disabled={downloadingId === doc.id}
-                style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: '0.5px solid var(--border-default)', background: 'var(--bg-primary)', color: '#534AB7', cursor: downloadingId === doc.id ? 'wait' : 'pointer', fontWeight: 500 }}
+                style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: '0.5px solid var(--border-default)', background: 'var(--bg-primary)', color: '#EA580C', cursor: downloadingId === doc.id ? 'wait' : 'pointer', fontWeight: 500 }}
               >
                 {downloadingId === doc.id ? '…' : 'Download'}
               </button>

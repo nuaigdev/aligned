@@ -45,7 +45,7 @@ export default function NotificationBell() {
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '0.5px solid var(--border-default)' }}>
                 <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)' }}>Notifications</span>
                 {unreadCount > 0 && (
-                  <button onClick={markAllAsRead} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#534AB7', fontSize: '11px' }}>
+                  <button onClick={markAllAsRead} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EA580C', fontSize: '11px' }}>
                     Mark all read
                   </button>
                 )}

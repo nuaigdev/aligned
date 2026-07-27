@@ -65,16 +65,16 @@ export async function sendApprovalEmail({
           Hi ${recipientName}, a ${typeLabel} on the <strong>${projectName}</strong> project requires your formal approval.
         </p>
 
-        <div style="background: #f5f4ff; border: 1px solid #afa9ec; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-          <p style="font-size: 12px; color: #534ab7; margin: 0 0 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+          <p style="font-size: 12px; color: #ea580c; margin: 0 0 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">
             ${typeLabel === 'decision' ? 'Decision' : 'Milestone'}
           </p>
-          <p style="font-size: 15px; font-weight: 500; color: #26215c; margin: 0;">
+          <p style="font-size: 15px; font-weight: 500; color: #7c2d12; margin: 0;">
             ${targetTitle}
           </p>
         </div>
 
-        <a href="${signUrl}" style="display: inline-block; background: #534ab7; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500; margin-bottom: 24px;">
+        <a href="${signUrl}" style="display: inline-block; background: #ea580c; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500; margin-bottom: 24px;">
           Review &amp; sign →
         </a>
 
@@ -134,7 +134,7 @@ export async function sendNudgeEmail({
           </p>
         </div>
 
-        <a href="${signUrl}" style="display: inline-block; background: #534ab7; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500; margin-bottom: 24px;">
+        <a href="${signUrl}" style="display: inline-block; background: #ea580c; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500; margin-bottom: 24px;">
           Review &amp; sign →
         </a>
 
@@ -174,10 +174,10 @@ export async function sendTicketConfirmationEmail({
         <p style="font-size: 15px; color: #444; margin-bottom: 16px;">
           Thanks ${raisedByName} — ${formatTicketRef(refNumber)} has been logged and routed to the right person.
         </p>
-        <div style="background: #f5f4ff; border: 1px solid #afa9ec; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
-          <p style="font-size: 15px; font-weight: 500; color: #26215c; margin: 0;">${title}</p>
+        <div style="background: #fff7ed; border: 1px solid #fed7aa; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
+          <p style="font-size: 15px; font-weight: 500; color: #7c2d12; margin: 0;">${title}</p>
         </div>
-        <a href="${url}" style="display: inline-block; background: #534ab7; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        <a href="${url}" style="display: inline-block; background: #ea580c; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500;">
           View ticket →
         </a>
       </div>
@@ -214,7 +214,7 @@ export async function sendTicketReplyEmail({
         <h1 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${actorName} replied</h1>
         <p style="font-size: 13px; color: #888; margin-bottom: 16px;">${formatTicketRef(refNumber)} · ${title}</p>
         <div style="background: #f9f9f8; border: 1px solid #eee; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px; white-space: pre-wrap; font-size: 14px; color: #333;">${replyBody}</div>
-        <a href="${url}" style="display: inline-block; background: #534ab7; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        <a href="${url}" style="display: inline-block; background: #ea580c; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500;">
           Reply on the portal →
         </a>
       </div>
@@ -250,7 +250,7 @@ export async function sendTicketResolvedEmail({
           <p style="font-size: 15px; font-weight: 500; color: #1a1918; margin: 0;">${title}</p>
         </div>
         <p style="font-size: 13px; color: #666; margin-bottom: 16px;">If this doesn't look resolved to you, just reply on the portal to reopen the conversation.</p>
-        <a href="${url}" style="display: inline-block; background: #534ab7; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500;">
+        <a href="${url}" style="display: inline-block; background: #ea580c; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500;">
           View ticket →
         </a>
       </div>

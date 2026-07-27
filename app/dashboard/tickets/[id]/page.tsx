@@ -43,7 +43,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
   return (
     <div>
       <div style={{ marginBottom: '16px', fontSize: '12px' }}>
-        <Link href="/dashboard/tickets" style={{ color: '#534AB7', textDecoration: 'none' }}>Tickets</Link>
+        <Link href="/dashboard/tickets" style={{ color: '#EA580C', textDecoration: 'none' }}>Tickets</Link>
         <span style={{ color: 'var(--text-tertiary)' }}> / {formatTicketRef(ticket.ref_number)} · {client?.name}</span>
         {ticket.projects && (
           <span style={{ color: 'var(--text-tertiary)' }}> · {(ticket.projects as any).name}</span>

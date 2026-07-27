@@ -80,7 +80,7 @@ export default function NewProjectForm({ defaultClientId }: { defaultClientId?: 
     <div style={{ maxWidth: '520px' }}>
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>
-          <Link href="/dashboard/projects" style={{ color: '#534AB7', textDecoration: 'none' }}>Projects</Link>
+          <Link href="/dashboard/projects" style={{ color: '#EA580C', textDecoration: 'none' }}>Projects</Link>
           {' / New'}
         </div>
         <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>New project</h1>
@@ -190,7 +190,7 @@ export default function NewProjectForm({ defaultClientId }: { defaultClientId?: 
               disabled={!canSubmit}
               style={{
                 padding: '8px 18px',
-                background: canSubmit ? '#534AB7' : '#AFA9EC',
+                background: canSubmit ? '#EA580C' : '#FED7AA',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '8px',

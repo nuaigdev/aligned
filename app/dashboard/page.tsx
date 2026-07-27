@@ -68,7 +68,7 @@ export default async function DashboardPage() {
         <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
           Recent projects
         </div>
-        <Link href="/dashboard/projects" style={{ fontSize: '12px', color: '#534AB7', textDecoration: 'none' }}>
+        <Link href="/dashboard/projects" style={{ fontSize: '12px', color: '#EA580C', textDecoration: 'none' }}>
           View all →
         </Link>
       </div>
@@ -128,7 +128,7 @@ export default async function DashboardPage() {
             borderRadius: '10px',
           }}>
             <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>No projects yet.</div>
-            <Link href="/dashboard/projects" style={{ fontSize: '13px', color: '#534AB7', textDecoration: 'none', display: 'block', marginTop: '6px' }}>
+            <Link href="/dashboard/projects" style={{ fontSize: '13px', color: '#EA580C', textDecoration: 'none', display: 'block', marginTop: '6px' }}>
               Create your first project →
             </Link>
           </div>

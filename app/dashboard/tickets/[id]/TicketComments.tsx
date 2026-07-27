@@ -228,7 +228,7 @@ function Composer({
             <X size={11} /> Cancel
           </button>
         )}
-        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: '#534AB7', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1 }}>
+        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: '#EA580C', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1 }}>
           {submitLabel === 'Save' ? <Check size={12} /> : <Send size={12} />}
           {busy ? 'Saving…' : submitLabel}
         </button>

@@ -1,6 +1,7 @@
 import { getSessionClient } from '@/lib/portal/session-guard'
 import PortalNav from './PortalNav'
 import PortalLogoutButton from './LogoutButton'
+import { Logo } from '@/components/Logo'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const client = await getSessionClient()
@@ -15,9 +16,7 @@ export default async function PortalLayout({ children }: { children: React.React
         alignItems: 'center',
         gap: '14px',
       }}>
-        <div style={{ fontSize: '15px', fontWeight: 500, letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-          <span style={{ color: '#534AB7' }}>Aligned</span>
-        </div>
+        <Logo size={22} wordmarkSize={15} />
         <div style={{ width: '1px', height: '18px', background: 'var(--border-default)' }} />
         <div>
           <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{client.name}</div>

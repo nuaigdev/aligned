@@ -25,9 +25,9 @@ export default async function DecisionsPage({ params }: { params: { projectId: s
     <div>
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '12px', color: '#888780', marginBottom: '6px' }}>
-          <Link href="/dashboard/projects" style={{ color: '#534AB7', textDecoration: 'none' }}>Projects</Link>
+          <Link href="/dashboard/projects" style={{ color: '#EA580C', textDecoration: 'none' }}>Projects</Link>
           {' / '}
-          <Link href={`/dashboard/projects/${params.projectId}`} style={{ color: '#534AB7', textDecoration: 'none' }}>
+          <Link href={`/dashboard/projects/${params.projectId}`} style={{ color: '#EA580C', textDecoration: 'none' }}>
             {project.name}
           </Link>
           {' / Decisions'}
