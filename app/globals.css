@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Brand */
+  --brand-50:  #EEEDFE;
+  --brand-100: #CECBF6;
+  --brand-200: #AFA9EC;
+  --brand-400: #7F77DD;
+  --brand-600: #534AB7;
+  --brand-800: #3C3489;
+  --brand-900: #26215C;
+
+  /* Neutrals */
+  --gray-50:  #F9F9F8;
+  --gray-100: #F1EFE8;
+  --gray-200: #D3D1C7;
+  --gray-400: #888780;
+  --gray-600: #5F5E5A;
+  --gray-800: #2C2C2A;
+
+  /* Surfaces */
+  --bg-primary:   #ffffff;
+  --bg-secondary: #F9F9F8;
+  --bg-tertiary:  #F1EFE8;
+
+  /* Text */
+  --text-primary:   #1a1918;
+  --text-secondary: #5F5E5A;
+  --text-tertiary:  #888780;
+
+  /* Borders */
+  --border-default: rgba(0,0,0,0.1);
+  --border-medium:  rgba(0,0,0,0.18);
+
+  /* Status */
+  --success-bg:   #EAF3DE;
+  --success-text: #3B6D11;
+  --warning-bg:   #FAEEDA;
+  --warning-text: #633806;
+  --danger-bg:    #FCEBEB;
+  --danger-text:  #A32D2D;
+  --info-bg:      #E6F1FB;
+  --info-text:    #0C447C;
+}
+
+[data-theme="dark"] {
+  --brand-50:  rgba(83, 74, 183, 0.2);
+  --brand-800: #A9A3F0;
+
+  --bg-primary:   #1E1D1C;
+  --bg-secondary: #161514;
+  --bg-tertiary:  #111010;
+
+  --text-primary:   #EEECEA;
+  --text-secondary: #9A9892;
+  --text-tertiary:  #6A6862;
+
+  --border-default: rgba(255,255,255,0.08);
+  --border-medium:  rgba(255,255,255,0.14);
+
+  --success-bg:   rgba(59, 109, 17, 0.18);
+  --success-text: #8DC958;
+  --warning-bg:   rgba(186, 117, 23, 0.18);
+  --warning-text: #F0A94A;
+  --danger-bg:    rgba(163, 45, 45, 0.18);
+  --danger-text:  #E07070;
+  --info-bg:      rgba(12, 68, 124, 0.18);
+  --info-text:    #5BADEE;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Dark mode native controls */
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Autofill override for dark mode */
+[data-theme="dark"] input:-webkit-autofill,
+[data-theme="dark"] input:-webkit-autofill:hover,
+[data-theme="dark"] input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #1E1D1C inset;
+  -webkit-text-fill-color: #EEECEA;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--gray-200);
+  border-radius: 3px;
+}
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: var(--gray-800);
+}
+
+/* Focus ring */
+:focus-visible {
+  outline: 2px solid var(--brand-600);
+  outline-offset: 2px;
+}
+
+/* Utility classes used across components */
+@layer components {
+  .card {
+    background: var(--bg-primary);
+    border: 0.5px solid var(--border-default);
+    border-radius: 10px;
+  }
+
+  .pill {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium;
+  }
+
+  .pill-success {
+    background: var(--success-bg);
+    color: var(--success-text);
+  }
+
+  .pill-warning {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+  }
+
+  .pill-danger {
+    background: var(--danger-bg);
+    color: var(--danger-text);
+  }
+
+  .pill-info {
+    background: var(--info-bg);
+    color: var(--info-text);
+  }
+
+  .pill-brand {
+    background: var(--brand-50);
+    color: var(--brand-800);
+  }
+
+  .pill-neutral {
+    background: var(--bg-tertiary);
+    color: var(--text-tertiary);
+  }
+
+  .btn {
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm cursor-pointer transition-colors;
+    border: 0.5px solid var(--border-medium);
+    background: transparent;
+    color: var(--text-primary);
+  }
+
+  .btn:hover {
+    background: var(--bg-tertiary);
+  }
+
+  .btn-primary {
+    @apply btn border-transparent text-white;
+    background: var(--brand-600);
+  }
+
+  .btn-primary:hover {
+    background: var(--brand-800);
+  }
+
+  .section-label {
+    @apply text-xs font-medium uppercase tracking-wide;
+    color: var(--text-tertiary);
+  }
+}

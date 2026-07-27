@@ -1,0 +1,148 @@
+import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { notFound } from 'next/navigation'
+import { formatDate } from '@/lib/utils'
+import Link from 'next/link'
+import ContactsManager from './ContactsManager'
+import type { ClientContact } from '@/types'
+
+const STATUS_DOT: Record<string, string> = {
+  active: '#3B6D11', awaiting_client: '#BA7517', awaiting_team: '#185FA5',
+  on_hold: '#888780', completed: '#3B6D11', archived: '#B4B2A9',
+}
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Active', awaiting_client: 'Awaiting client', awaiting_team: 'Awaiting team',
+  on_hold: 'On hold', completed: 'Completed', archived: 'Archived',
+}
+
+export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
+  const supabase = createSupabaseServerClient()
+
+  const [{ data: client }, { data: activeContacts }, { data: formerContacts }] = await Promise.all([
+    supabase
+      .from('clients')
+      .select('*, projects(id, name, status, started_at, updated_at)')
+      .eq('id', params.clientId)
+      .single(),
+    supabase
+      .from('client_contacts')
+      .select('*')
+      .eq('client_id', params.clientId)
+      .is('project_id', null)
+      .eq('is_active', true)
+      .order('name'),
+    supabase
+      .from('client_contacts')
+      .select('*')
+      .eq('client_id', params.clientId)
+      .is('project_id', null)
+      .eq('is_active', false)
+      .order('removed_at', { ascending: false }),
+  ])
+
+  if (!client) notFound()
+
+  const projects = (client.projects as any[]) ?? []
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>
+          <Link href="/dashboard/clients" style={{ color: '#534AB7', textDecoration: 'none' }}>Clients</Link>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div>
+            <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{client.name}</h1>
+            <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+              Added {formatDate(client.created_at)} · {projects.length} project{projects.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+          <Link
+            href={`/dashboard/projects/new?client=${client.id}`}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '7px 14px',
+              background: '#534AB7',
+              color: '#fff',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: 500,
+              textDecoration: 'none',
+            }}
+          >
+            + New project
+          </Link>
+        </div>
+      </div>
+
+      {/* Projects */}
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{
+          fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)',
+          textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px',
+        }}>
+          Projects
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {projects.map((project: any) => (
+            <Link
+              key={project.id}
+              href={`/dashboard/projects/${project.id}`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '11px 14px',
+                background: 'var(--bg-primary)',
+                border: '0.5px solid var(--border-default)',
+                borderRadius: '10px',
+                textDecoration: 'none',
+              }}
+            >
+              <div style={{
+                width: '7px', height: '7px', borderRadius: '50%',
+                background: STATUS_DOT[project.status] || '#888780', flexShrink: 0,
+              }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{project.name}</div>
+                {project.started_at && (
+                  <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '1px' }}>
+                    Started {formatDate(project.started_at)}
+                  </div>
+                )}
+              </div>
+              <div style={{
+                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
+                background: 'var(--bg-tertiary)', color: STATUS_DOT[project.status] || '#888780', fontWeight: 500,
+              }}>
+                {STATUS_LABEL[project.status] || project.status}
+              </div>
+            </Link>
+          ))}
+          {projects.length === 0 && (
+            <div style={{
+              padding: '32px', textAlign: 'center', background: 'var(--bg-primary)',
+              border: '0.5px solid var(--border-default)', borderRadius: '10px',
+            }}>
+              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>No projects yet</div>
+              <Link
+                href={`/dashboard/projects/new?client=${client.id}`}
+                style={{ fontSize: '13px', color: '#534AB7', textDecoration: 'none' }}
+              >
+                Create first project →
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Contacts — managed by client component */}
+      <ContactsManager
+        clientId={params.clientId}
+        contacts={(activeContacts ?? []) as ClientContact[]}
+        formerContacts={(formerContacts ?? []) as ClientContact[]}
+      />
+    </div>
+  )
+}
