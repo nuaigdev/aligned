@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import ContactsManager from './ContactsManager'
+import ClientAccessManager from './ClientAccessManager'
 import type { ClientContact } from '@/types'
 
 const STATUS_DOT: Record<string, string> = {
@@ -17,7 +18,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
   const supabase = createSupabaseServerClient()
 
-  const [{ data: client }, { data: activeContacts }, { data: formerContacts }] = await Promise.all([
+  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }] = await Promise.all([
     supabase
       .from('clients')
       .select('*, projects(id, name, status, started_at, updated_at)')
@@ -37,6 +38,12 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
       .is('project_id', null)
       .eq('is_active', false)
       .order('removed_at', { ascending: false }),
+    supabase
+      .from('team_members')
+      .select('*')
+      .in('role', ['admin', 'manager'])
+      .eq('is_active', true)
+      .order('name'),
   ])
 
   if (!client) notFound()
@@ -135,6 +142,21 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
             </div>
           )}
         </div>
+      </div>
+
+      {/* Manager + portal login */}
+      <div style={{ marginBottom: '28px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+          Access
+        </div>
+        <ClientAccessManager
+          clientId={params.clientId}
+          managers={(managers ?? []) as any}
+          currentManagerId={client.manager_id}
+          loginId={client.login_id}
+          mustChangePassword={client.must_change_password}
+          lastLoginAt={client.last_login_at}
+        />
       </div>
 
       {/* Contacts — managed by client component */}

@@ -1,17 +1,10 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { getSessionProject } from '@/lib/portal/session-guard'
 import DocumentsPortalPanel from './DocumentsPortalPanel'
 
-export default async function PortalDocumentsPage({ params }: { params: { token: string } }) {
+export default async function PortalDocumentsPage({ params }: { params: { projectId: string } }) {
+  const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()
-
-  const { data: project } = await supabase
-    .from('projects')
-    .select('id, name, clients(name)')
-    .eq('portal_token', params.token)
-    .single()
-
-  if (!project) notFound()
 
   const { data: documents } = await supabase
     .from('documents')
@@ -19,9 +12,8 @@ export default async function PortalDocumentsPage({ params }: { params: { token:
     .eq('project_id', project.id)
     .order('created_at', { ascending: false })
 
-  const clientName = (project.clients as any)?.name || 'Client'
+  const clientName = project.clients?.name || 'Client'
 
-  // Generate signed URLs server-side
   const docsWithUrls = await Promise.all(
     (documents ?? []).map(async doc => {
       let signedUrl: string | null = null
@@ -48,19 +40,12 @@ export default async function PortalDocumentsPage({ params }: { params: { token:
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      <div>
-        <h1 style={{ fontSize: '22px', fontWeight: 500, color: '#1a1918', margin: '0 0 4px' }}>Documents</h1>
-        <p style={{ fontSize: '13px', color: '#888780', margin: 0 }}>
-          Shared project files · {docsWithUrls.length} document{docsWithUrls.length !== 1 ? 's' : ''}
-        </p>
-      </div>
+      <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', margin: 0 }}>
+        Shared project files · {docsWithUrls.length} document{docsWithUrls.length !== 1 ? 's' : ''}
+      </p>
 
       {docsWithUrls.length === 0 ? (
-        <div style={{
-          padding: '48px 32px', textAlign: 'center', background: '#fff',
-          border: '0.5px solid rgba(0,0,0,0.1)', borderRadius: '10px',
-          fontSize: '14px', color: '#888780',
-        }}>
+        <div style={{ padding: '48px 32px', textAlign: 'center', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', fontSize: '14px', color: 'var(--text-tertiary)' }}>
           No documents have been shared yet
         </div>
       ) : (

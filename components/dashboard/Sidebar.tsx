@@ -5,8 +5,9 @@ import { usePathname } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { getInitials } from '@/lib/utils'
-import { LayoutDashboard, FolderOpen, Users, LogOut } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, Users, LogOut, Ticket } from 'lucide-react'
 import { ThemeToggle } from '@/components/ThemeToggle'
+import NotificationBell from './NotificationBell'
 
 interface Props {
   member: { name: string; email: string; role: string } | null
@@ -14,6 +15,7 @@ interface Props {
 
 const NAV = [
   { href: '/dashboard', label: 'Overview', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/tickets', label: 'Tickets', icon: Ticket },
   { href: '/dashboard/projects', label: 'Projects', icon: FolderOpen },
   { href: '/dashboard/clients', label: 'Clients', icon: Users },
 ]
@@ -110,6 +112,7 @@ export default function DashboardSidebar({ member }: Props) {
             </div>
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{member.role}</div>
           </div>
+          <NotificationBell />
           <ThemeToggle />
           <button
             onClick={handleSignOut}

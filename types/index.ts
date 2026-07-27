@@ -3,6 +3,8 @@
 // These mirror the Supabase database schema exactly
 // ============================================================
 
+export type TeamRole = 'admin' | 'manager' | 'member'
+
 export type ProjectStatus =
   | 'active'
   | 'on_hold'
@@ -28,16 +30,66 @@ export type ApprovalStatus = 'pending' | 'signed' | 'expired' | 'superseded'
 
 export type DocumentSharedBy = 'team' | 'client'
 
+// Richer than a simple 3-lane board on purpose — this is client-
+// facing support, not internal work tracking.
+export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
+export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
+export type TicketBlockedOn = 'client' | 'team'
+
+export type NotificationType =
+  | 'ticket_assigned'
+  | 'ticket_status_changed'
+  | 'ticket_commented'
+  | 'ticket_mentioned'
+  | 'ticket_updated'
+
 // ============================================================
 // DATABASE ROW TYPES
 // ============================================================
 
+export interface TeamMember {
+  id: string
+  name: string
+  email: string
+  role: TeamRole
+  manager_id: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  // Joined
+  manager?: TeamMember
+  reports?: TeamMember[]
+}
+
+/**
+ * Client-facing row shape — deliberately excludes password_hash.
+ * Anything that fetches a client for display in a component (team
+ * or portal) should select this shape, never the raw DB row.
+ */
 export interface Client {
   id: string
   name: string
   slug: string
+  manager_id: string | null
+  login_id: string | null
+  must_change_password: boolean
+  last_login_at: string | null
   created_at: string
   updated_at: string
+  // Joined
+  manager?: TeamMember
+}
+
+/**
+ * Only ever read/written from server-side auth code
+ * (lib/auth/client-session.ts, the credential-issuing action on the
+ * client detail page). Never pass this to a client component.
+ */
+export interface ClientCredentials {
+  id: string
+  login_id: string | null
+  password_hash: string | null
+  must_change_password: boolean
 }
 
 export interface ClientContact {
@@ -58,7 +110,6 @@ export interface Project {
   name: string
   description: string | null
   status: ProjectStatus
-  portal_token: string
   started_at: string | null
   planned_end_at: string | null
   created_at: string
@@ -123,6 +174,7 @@ export interface Document {
   project_id: string
   milestone_id: string | null
   decision_id: string | null
+  ticket_id: string | null
   name: string
   storage_path: string
   file_type: string | null
@@ -144,12 +196,110 @@ export interface MilestoneSignoff {
   user_agent: string | null
 }
 
-export interface TeamMember {
+// ============================================================
+// TICKETS
+// ============================================================
+
+/**
+ * A ticket is authored by exactly one of a team member OR a client
+ * (dual authorship, enforced by a DB CHECK constraint) — the client
+ * side is a free-text "posting as" name since client login is one
+ * shared credential per company, not per contact.
+ */
+export interface Ticket {
   id: string
-  name: string
-  email: string
-  role: 'admin' | 'member'
+  ref_number: number
+  client_id: string
+  project_id: string | null
+  title: string
+  description: string | null
+  category: string
+  status: TicketStatus
+  priority: TicketPriority
+  blocked_on: TicketBlockedOn | null
+  position: number
+  due_date: string | null
+  resolved_at: string | null
+  closed_at: string | null
+  reopened_count: number
+  created_by_team_member_id: string | null
+  created_by_client_name: string | null
   created_at: string
+  updated_at: string
+  // Joined
+  client?: Client
+  project?: Project
+  creator?: TeamMember
+  assignees?: TicketAssignee[]
+  comment_count?: number
+}
+
+export interface TicketAssignee {
+  id: string
+  ticket_id: string
+  team_member_id: string
+  assigned_by: string | null
+  assigned_at: string
+  // Joined
+  member?: TeamMember
+  assigner?: TeamMember
+}
+
+export interface TicketComment {
+  id: string
+  ticket_id: string
+  body: string
+  edited_at: string | null
+  mentioned_team_member_ids: string[]
+  created_by_team_member_id: string | null
+  created_by_client_name: string | null
+  created_at: string
+  updated_at: string
+  // Joined
+  author?: TeamMember
+  mentions?: TeamMember[]
+}
+
+export const TICKET_STATUS_LABELS: Record<TicketStatus, string> = {
+  open: 'Open',
+  in_progress: 'In Progress',
+  resolved: 'Resolved',
+  closed: 'Closed',
+}
+
+// Kanban lane order, left to right.
+export const TICKET_LANES: TicketStatus[] = ['open', 'in_progress', 'resolved', 'closed']
+
+export const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  urgent: 'Urgent',
+}
+
+// ============================================================
+// NOTIFICATIONS (team-side only — clients get email instead)
+// ============================================================
+
+export interface AppNotification {
+  id: string
+  team_member_id: string
+  type: NotificationType
+  title: string
+  body: string | null
+  ticket_id: string | null
+  is_read: boolean
+  created_at: string
+}
+
+// ============================================================
+// APP SETTINGS
+// ============================================================
+
+export interface AppSetting<T = unknown> {
+  key: string
+  value: { value: T }
+  updated_at: string
 }
 
 // ============================================================
@@ -194,6 +344,7 @@ export interface ClientWithProjects extends Client {
 export interface CreateClientInput {
   name: string
   slug: string
+  manager_id?: string
 }
 
 export interface CreateProjectInput {
@@ -240,11 +391,35 @@ export interface UploadDocumentInput {
   shared_by: DocumentSharedBy
   milestone_id?: string
   decision_id?: string
+  ticket_id?: string
+}
+
+export interface CreateTicketInput {
+  client_id: string
+  project_id?: string
+  title: string
+  description?: string
+  category?: string
+  priority?: TicketPriority
+  due_date?: string
+  assignee_ids?: string[]
+  // Exactly one of these is filled in by the caller (team page vs portal page)
+  created_by_team_member_id?: string
+  created_by_client_name?: string
+}
+
+export interface CreateTicketCommentInput {
+  ticket_id: string
+  body: string
+  mentioned_team_member_ids?: string[]
+  created_by_team_member_id?: string
+  created_by_client_name?: string
 }
 
 // ============================================================
-// PORTAL TYPES (client-facing, read-only)
-// Strips sensitive internal fields
+// PORTAL TYPES (client-facing)
+// Strips sensitive internal fields. The portal is session-based
+// (client login), not token-based — see lib/auth/client-session.ts.
 // ============================================================
 
 export interface PortalProject {
@@ -303,4 +478,20 @@ export interface PortalDocument {
   shared_by_label: string  // "By NuAIg" or "By [ClientName]"
   created_at: string
   download_url?: string   // signed URL, short-lived
+}
+
+export interface PortalTicket {
+  id: string
+  ref_number: number
+  title: string
+  description: string | null
+  category: string
+  status: TicketStatus
+  priority: TicketPriority
+  blocked_on: TicketBlockedOn | null
+  due_date: string | null
+  resolved_at: string | null
+  created_by_client_name: string | null
+  created_at: string
+  comment_count?: number
 }

@@ -78,6 +78,26 @@ export const DECISION_STATUS_LABELS: Record<string, string> = {
   amended: 'Amended',
 }
 
+// ── Ticket status/priority pill config ────────────────────────
+export const TICKET_STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+  open:        { label: 'Open',        bg: 'var(--info-bg)',    color: 'var(--info-text)' },
+  in_progress: { label: 'In progress', bg: 'var(--warning-bg)', color: 'var(--warning-text)' },
+  resolved:    { label: 'Resolved',    bg: 'var(--success-bg)', color: 'var(--success-text)' },
+  closed:      { label: 'Closed',      bg: 'var(--bg-tertiary)', color: 'var(--text-tertiary)' },
+}
+
+export const TICKET_PRIORITY_COLOR: Record<string, string> = {
+  low: '#888780',
+  medium: '#0C447C',
+  high: '#633806',
+  urgent: '#A32D2D',
+}
+
+// ── Ticket ref formatting ──────────────────────────────────────
+export function formatTicketRef(refNumber: number): string {
+  return `#T-${String(refNumber).padStart(3, '0')}`
+}
+
 // ── Initials from name ────────────────────────────────────────
 export function getInitials(name: string): string {
   return name
@@ -86,12 +106,6 @@ export function getInitials(name: string): string {
     .join('')
     .toUpperCase()
     .slice(0, 2)
-}
-
-// ── Generate portal URL ───────────────────────────────────────
-export function getPortalUrl(token: string): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  return `${base}/portal/${token}`
 }
 
 // ── Generate sign URL ─────────────────────────────────────────

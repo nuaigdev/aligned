@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { CLIENT_SESSION_COOKIE, verifyClientSessionToken } from '@/lib/auth/client-session-core'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -46,7 +47,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Portal and sign routes are public (token-based access, no session needed)
+  // Portal routes require a valid client session cookie (login id +
+  // password, one shared credential per client company) — replaces
+  // the old per-project portal_token URL entirely.
+  if (pathname.startsWith('/portal') && pathname !== '/portal/login') {
+    const clientSession = await verifyClientSessionToken(
+      request.cookies.get(CLIENT_SESSION_COOKIE)?.value
+    )
+    if (!clientSession) {
+      return NextResponse.redirect(new URL('/portal/login', request.url))
+    }
+  }
+
+  // Redirect an already-logged-in client away from the login page
+  if (pathname === '/portal/login') {
+    const clientSession = await verifyClientSessionToken(
+      request.cookies.get(CLIENT_SESSION_COOKIE)?.value
+    )
+    if (clientSession) {
+      return NextResponse.redirect(new URL('/portal', request.url))
+    }
+  }
+
+  // /sign/[approvalToken] stays public — one-time email link, no session at all.
   return response
 }
 

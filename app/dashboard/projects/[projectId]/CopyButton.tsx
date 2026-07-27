@@ -15,7 +15,7 @@ export default function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={handleCopy}
-      title={copied ? 'Copied!' : 'Copy portal link'}
+      title={copied ? 'Copied!' : 'Copy'}
       style={{
         background: 'none', border: 'none', cursor: 'pointer',
         color: copied ? '#3B6D11' : '#888780', display: 'flex', padding: '4px',

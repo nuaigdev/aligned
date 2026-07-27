@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import { ThemeProvider } from '@/components/ThemeProvider'
+import { Toaster } from 'react-hot-toast'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -24,6 +25,21 @@ export default function RootLayout({
       </head>
       <body>
         <ThemeProvider>
+          <Toaster
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                border: '0.5px solid var(--border-default)',
+                borderRadius: '10px',
+                fontSize: '13px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+              },
+              success: { iconTheme: { primary: '#3B6D11', secondary: '#EAF3DE' } },
+              error: { iconTheme: { primary: '#A32D2D', secondary: '#FCEBEB' } },
+            }}
+          />
           {/* Mobile block — shown on screens below md (768px) */}
           <div className="mobile-block">
             <div className="mobile-block__inner">

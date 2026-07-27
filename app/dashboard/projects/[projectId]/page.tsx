@@ -1,6 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
-import { formatDate, formatDecisionRef, formatRelative, getPortalUrl } from '@/lib/utils'
+import { formatDate, formatDecisionRef, formatRelative } from '@/lib/utils'
 import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import CopyButton from './CopyButton'
@@ -10,7 +10,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
 
   const { data: project } = await supabase
     .from('projects')
-    .select('*, clients(name, slug)')
+    .select('*, clients(id, name, slug, login_id)')
     .eq('id', params.projectId)
     .single()
 
@@ -37,7 +37,9 @@ export default async function ProjectPage({ params }: { params: { projectId: str
   const completed = milestones?.filter(m => m.status === 'completed').length ?? 0
   const total = milestones?.length ?? 0
   const progress = total > 0 ? Math.round((completed / total) * 100) : 0
-  const portalUrl = getPortalUrl(project.portal_token)
+  const client = project.clients as any
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const portalDeepLink = `${appUrl}/portal/projects/${project.id}`
 
   const STATUS_LABEL: Record<string, string> = {
     active: 'Active', awaiting_client: 'Awaiting client',
@@ -113,7 +115,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
         </div>
       </div>
 
-      {/* Portal link */}
+      {/* Client access */}
       <div style={{
         background: 'var(--bg-primary)',
         border: '0.5px solid var(--border-default)',
@@ -126,12 +128,18 @@ export default async function ProjectPage({ params }: { params: { projectId: str
       }}>
         <ExternalLink size={14} color="#534AB7" />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '2px' }}>Client portal link (read-only, shareable)</div>
+          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '2px' }}>
+            {client?.login_id ? 'Client logs in with' : 'No client login issued yet'}
+          </div>
           <div style={{ fontSize: '12px', color: '#534AB7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {portalUrl}
+            {client?.login_id ?? (
+              <Link href={`/dashboard/clients/${client?.id}`} style={{ color: '#534AB7' }}>
+                Set one up on the client page →
+              </Link>
+            )}
           </div>
         </div>
-        <CopyButton text={portalUrl} />
+        {client?.login_id && <CopyButton text={client.login_id} />}
       </div>
 
       {/* Stats */}
