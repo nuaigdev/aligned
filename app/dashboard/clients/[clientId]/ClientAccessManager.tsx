@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { Copy, Check, KeyRound } from 'lucide-react'
 import { setClientManager, issueClientCredentials, revokeClientCredentials } from '@/lib/clients/access-actions'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, getPortalLoginUrl } from '@/lib/utils'
 import type { TeamMember } from '@/types'
 
 const inputStyle: React.CSSProperties = {
@@ -32,7 +32,9 @@ export default function ClientAccessManager({
   const [loginId, setLoginId] = useState(initialLoginId ?? '')
   const [revealedPassword, setRevealedPassword] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [urlCopied, setUrlCopied] = useState(false)
   const [busy, setBusy] = useState(false)
+  const portalUrl = getPortalLoginUrl()
 
   async function handleManagerChange(value: string) {
     setManagerId(value)
@@ -77,6 +79,12 @@ export default function ClientAccessManager({
     await navigator.clipboard.writeText(revealedPassword)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  async function copyPortalUrl() {
+    await navigator.clipboard.writeText(portalUrl)
+    setUrlCopied(true)
+    setTimeout(() => setUrlCopied(false), 2000)
   }
 
   return (
@@ -130,10 +138,20 @@ export default function ClientAccessManager({
               <div style={{ fontSize: '11px', color: 'var(--warning-text)', marginBottom: '4px' }}>
                 One-time password — share this with the client now, it won't be shown again
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <code style={{ flex: 1, fontSize: '14px', fontFamily: 'monospace', color: 'var(--text-primary)' }}>{revealedPassword}</code>
                 <button onClick={copyPassword} style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? 'var(--success-text)' : 'var(--text-tertiary)', display: 'flex' }}>
                   {copied ? <Check size={14} /> : <Copy size={14} />}
+                </button>
+              </div>
+
+              <div style={{ fontSize: '11px', color: 'var(--warning-text)', marginBottom: '4px', borderTop: '0.5px solid rgba(0,0,0,0.08)', paddingTop: '8px' }}>
+                Portal link — where the client logs in
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <code style={{ flex: 1, fontSize: '13px', fontFamily: 'monospace', color: 'var(--text-primary)', wordBreak: 'break-all' }}>{portalUrl}</code>
+                <button onClick={copyPortalUrl} style={{ background: 'none', border: 'none', cursor: 'pointer', color: urlCopied ? 'var(--success-text)' : 'var(--text-tertiary)', display: 'flex', flexShrink: 0 }}>
+                  {urlCopied ? <Check size={14} /> : <Copy size={14} />}
                 </button>
               </div>
             </motion.div>

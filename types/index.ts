@@ -74,6 +74,7 @@ export interface Client {
   login_id: string | null
   must_change_password: boolean
   last_login_at: string | null
+  last_portal_seen_at: string | null
   created_at: string
   updated_at: string
   // Joined

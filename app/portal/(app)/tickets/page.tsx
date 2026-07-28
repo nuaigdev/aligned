@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { getSessionClient } from '@/lib/portal/session-guard'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { formatRelative, formatTicketRef, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
+import { formatRelative, formatTicketRef, ticketClientCode, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import { Plus, Inbox } from 'lucide-react'
 import { EmptyState } from '@/components/dashboard/EmptyState'
 
@@ -19,6 +19,7 @@ export default async function PortalTicketsPage({ searchParams }: { searchParams
 
   const filterStatus = searchParams.status
   const filtered = (tickets ?? []).filter(t => !filterStatus || t.status === filterStatus)
+  const clientCode = ticketClientCode(client.slug)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -67,7 +68,7 @@ export default async function PortalTicketsPage({ searchParams }: { searchParams
                 style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '13px 16px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', textDecoration: 'none', animationDelay: `${Math.min(i, 10) * 30}ms` }}
               >
                 <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: TICKET_PRIORITY_COLOR[t.priority], flexShrink: 0 }} />
-                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{formatTicketRef(t.ref_number)}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{formatTicketRef(t.ref_number, clientCode)}</span>
                 <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</span>
                 {commentCount > 0 && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{commentCount} repl{commentCount === 1 ? 'y' : 'ies'}</span>}
                 <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: cfg.bg, color: cfg.color, fontWeight: 500, flexShrink: 0 }}>{cfg.label}</span>

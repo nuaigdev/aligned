@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
 import { getSessionClient } from '@/lib/portal/session-guard'
+import { hasNewPortalActivity } from '@/lib/portal/notifications'
 import PortalNav from './PortalNav'
 import PortalLogoutButton from './LogoutButton'
+import PortalNotificationBell from './PortalNotificationBell'
 import { Logo } from '@/components/Logo'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +15,8 @@ export default async function PortalLayout({ children }: { children: React.React
   if (client.must_change_password) {
     redirect('/portal/change-password')
   }
+
+  const hasNewActivity = await hasNewPortalActivity(client.id, client.last_portal_seen_at)
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
@@ -30,7 +34,8 @@ export default async function PortalLayout({ children }: { children: React.React
           <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{client.name}</div>
           <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Client portal</div>
         </div>
-        <div style={{ marginLeft: 'auto' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <PortalNotificationBell hasNewActivity={hasNewActivity} />
           <PortalLogoutButton />
         </div>
       </div>

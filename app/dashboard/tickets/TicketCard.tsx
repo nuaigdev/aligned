@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { formatTicketRef, TICKET_PRIORITY_COLOR, formatRelative, getInitials } from '@/lib/utils'
+import { formatTicketRef, ticketClientCode, TICKET_PRIORITY_COLOR, formatRelative, getInitials } from '@/lib/utils'
 import { MessageSquare, CalendarClock } from 'lucide-react'
 import { QuickDropdown, DropdownItem, PillTrigger, Dot } from '@/components/dashboard/QuickDropdown'
 import { TICKET_PRIORITY_LABELS } from '@/types'
@@ -11,6 +11,7 @@ import type { Ticket, TeamMember, TicketPriority } from '@/types'
 
 export interface BoardTicket extends Ticket {
   client_name?: string
+  client_slug?: string
   project_name?: string | null
   assignee_members?: TeamMember[]
 }
@@ -63,7 +64,7 @@ export default function TicketCard({
         </div>
 
         <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '7px' }}>
-          <span style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>{formatTicketRef(ticket.ref_number)}</span>
+          <span style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>{formatTicketRef(ticket.ref_number, ticket.client_slug && ticketClientCode(ticket.client_slug))}</span>
           {' · '}{ticket.client_name}
         </div>
 

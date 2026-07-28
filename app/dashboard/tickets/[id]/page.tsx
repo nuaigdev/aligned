@@ -2,11 +2,12 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { formatTicketRef } from '@/lib/utils'
+import { formatTicketRef, ticketClientCode } from '@/lib/utils'
 import TicketDetail from './TicketDetail'
 import TicketComments from './TicketComments'
 import TicketAttachments from './TicketAttachments'
 import TicketPropertiesPanel from './TicketPropertiesPanel'
+import RefreshOnMount from './RefreshOnMount'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +16,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
 
   const { data: ticket } = await supabase
     .from('tickets')
-    .select('*, clients(id, name, manager_id), projects(id, name)')
+    .select('*, clients(id, name, slug, manager_id), projects(id, name)')
     .eq('id', params.id)
     .maybeSingle()
 
@@ -29,6 +30,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
   ])
 
   const client = ticket.clients as any
+  const clientCode = client?.slug ? ticketClientCode(client.slug) : undefined
   const members = teamMembers ?? []
 
   // Same candidate scope as migration 010's is_on_client_team(): admins, the
@@ -48,6 +50,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
 
   return (
     <div>
+      <RefreshOnMount />
       <Link
         href="/dashboard/tickets"
         style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-tertiary)', textDecoration: 'none', marginBottom: '10px' }}
@@ -56,13 +59,13 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
       </Link>
 
       <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
-        {formatTicketRef(ticket.ref_number)} · {client?.name}
+        {formatTicketRef(ticket.ref_number, clientCode)} · {client?.name}
         {ticket.projects && ` · ${(ticket.projects as any).name}`}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '20px', alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
-          <TicketDetail ticket={ticket} />
+          <TicketDetail ticket={ticket} clientCode={clientCode} />
           <TicketAttachments
             ticketId={ticket.id}
             projectId={ticket.project_id}

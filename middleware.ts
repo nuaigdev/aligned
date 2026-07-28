@@ -42,6 +42,23 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
+  // A team member with a temp/generated password must set a real one
+  // before touching anything else — mirrors the client portal's
+  // must_change_password gate. Checked here (not in dashboard/layout.tsx)
+  // because change-password lives under the same /dashboard tree the
+  // layout wraps, and this needs to exclude that one route to avoid a
+  // redirect loop.
+  if (pathname.startsWith('/dashboard') && session && pathname !== '/dashboard/change-password') {
+    const { data: member } = await supabase
+      .from('team_members')
+      .select('must_change_password')
+      .eq('id', session.user.id)
+      .maybeSingle()
+    if (member?.must_change_password) {
+      return NextResponse.redirect(new URL('/dashboard/change-password', request.url))
+    }
+  }
+
   // Redirect authenticated users away from login page
   if (pathname === '/login' && session) {
     return NextResponse.redirect(new URL('/dashboard', request.url))

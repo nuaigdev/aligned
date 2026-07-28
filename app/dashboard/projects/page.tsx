@@ -9,11 +9,17 @@ export const dynamic = 'force-dynamic'
 
 export default async function ProjectsPage() {
   const supabase = createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: projects } = await supabase
-    .from('projects')
-    .select('*, clients(name, id), tickets(count)')
-    .order('updated_at', { ascending: false })
+  const [{ data: projects }, { data: me }] = await Promise.all([
+    supabase
+      .from('projects')
+      .select('*, clients(name, id), tickets(count)')
+      .order('updated_at', { ascending: false }),
+    user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+  ])
+
+  const canCreate = me?.role === 'admin' || me?.role === 'manager'
 
   const STATUS_DOT: Record<string, string> = {
     active:          '#3B6D11',
@@ -47,23 +53,25 @@ export default async function ProjectsPage() {
             {total} total
           </p>
         </div>
-        <Link
-          href="/dashboard/projects/new"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '7px 14px',
-            background: 'var(--brand-600)',
-            color: '#fff',
-            borderRadius: '8px',
-            fontSize: '13px',
-            fontWeight: 500,
-            textDecoration: 'none',
-          }}
-        >
-          <Plus size={14} /> New project
-        </Link>
+        {canCreate && (
+          <Link
+            href="/dashboard/projects/new"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 14px',
+              background: 'var(--brand-600)',
+              color: '#fff',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: 500,
+              textDecoration: 'none',
+            }}
+          >
+            <Plus size={14} /> New project
+          </Link>
+        )}
       </div>
 
       {total > 0 && (
@@ -134,9 +142,9 @@ export default async function ProjectsPage() {
           <EmptyState
             icon={FolderKanban}
             title="No projects yet"
-            description="Create a project to start tracking milestones, decisions, and documents for a client engagement."
-            actionLabel="Create your first project"
-            actionHref="/dashboard/projects/new"
+            description={canCreate ? 'Create a project to start tracking milestones, decisions, and documents for a client engagement.' : 'An admin or manager needs to create a project before you can start tracking milestones, decisions, and documents.'}
+            actionLabel={canCreate ? 'Create your first project' : undefined}
+            actionHref={canCreate ? '/dashboard/projects/new' : undefined}
           />
         )}
       </div>

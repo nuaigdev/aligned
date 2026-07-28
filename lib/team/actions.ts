@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { requireTeamRole } from '@/lib/auth/team-role-guard'
 import type { TeamRole } from '@/types'
 
 /**
@@ -11,13 +12,9 @@ import type { TeamRole } from '@/types'
  * people's accounts, so it's worth being paranoid.
  */
 async function requireAdmin(): Promise<{ id: string } | { error: string }> {
-  const supabase = createSupabaseServerClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Not signed in.' }
-
-  const { data: member } = await supabase.from('team_members').select('role').eq('id', user.id).maybeSingle()
-  if (member?.role !== 'admin') return { error: 'Only admins can manage team members.' }
-  return { id: user.id }
+  const result = await requireTeamRole(['admin'])
+  if ('error' in result) return result
+  return { id: result.id }
 }
 
 export async function createTeamMember(input: {
@@ -52,13 +49,13 @@ export async function createTeamMember(input: {
   if (existing) {
     const { error: updateError } = await service
       .from('team_members')
-      .update({ role: input.role, manager_id: input.managerId })
+      .update({ role: input.role, manager_id: input.managerId, must_change_password: true })
       .eq('id', userId)
     if (updateError) return { error: updateError.message }
   } else {
     const { error: insertError } = await service
       .from('team_members')
-      .insert({ id: userId, name: input.name.trim(), email: input.email.trim(), role: input.role, manager_id: input.managerId })
+      .insert({ id: userId, name: input.name.trim(), email: input.email.trim(), role: input.role, manager_id: input.managerId, must_change_password: true })
     if (insertError) return { error: insertError.message }
   }
 

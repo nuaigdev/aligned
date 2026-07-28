@@ -36,55 +36,63 @@ export default function TicketPropertiesPanel({
   const [assigneeIds, setAssigneeIds] = useState<string[]>(initialAssigneeIds)
   const [openSection, setOpenSection] = useState<string | null>(null)
 
-  async function patch(fields: Parameters<typeof updateTicket>[1]) {
+  async function patch(fields: Parameters<typeof updateTicket>[1], successMessage: string) {
     const result = await updateTicket(ticket.id, fields)
-    if ('error' in result) toast.error(result.error)
-    return !('error' in result)
+    if ('error' in result) {
+      toast.error(result.error)
+      return false
+    }
+    toast.success(successMessage)
+    return true
   }
 
   async function handleStatusChange(next: TicketStatus) {
     const prev = status
     setStatus(next)
     setOpenSection(null)
-    if (!(await patch({ status: next }))) setStatus(prev)
+    if (!(await patch({ status: next }, `Status set to ${TICKET_STATUS_LABELS[next]}`))) setStatus(prev)
   }
 
   async function handlePriorityChange(next: TicketPriority) {
     const prev = priority
     setPriority(next)
     setOpenSection(null)
-    if (!(await patch({ priority: next }))) setPriority(prev)
+    if (!(await patch({ priority: next }, `Priority set to ${TICKET_PRIORITY_LABELS[next]}`))) setPriority(prev)
   }
 
   async function handleCategoryChange(next: string) {
     const prev = category
     setCategory(next)
     setOpenSection(null)
-    if (!(await patch({ category: next }))) setCategory(prev)
+    if (!(await patch({ category: next }, `Category set to ${next.replace('_', ' ')}`))) setCategory(prev)
   }
 
   async function handleDueDateChange(next: string) {
     const prev = dueDate
     setDueDate(next)
-    if (!(await patch({ due_date: next || null }))) setDueDate(prev)
+    if (!(await patch({ due_date: next || null }, next ? 'Due date updated' : 'Due date cleared'))) setDueDate(prev)
   }
 
   async function handleBlockedOnChange(next: 'client' | 'team' | null) {
     const prev = blockedOn
     setBlockedOn(next)
     setOpenSection(null)
-    if (!(await patch({ blocked_on: next }))) setBlockedOn(prev)
+    if (!(await patch({ blocked_on: next }, next ? `Waiting on ${next}` : 'No longer blocked'))) setBlockedOn(prev)
   }
 
   async function toggleAssignee(id: string) {
     const prev = assigneeIds
-    const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    const adding = !prev.includes(id)
+    const next = adding ? [...prev, id] : prev.filter(x => x !== id)
+    const member = candidatePool.find(m => m.id === id)
     setAssigneeIds(next)
     const result = await setTicketAssignees(ticket.id, next)
     if ('error' in result) {
       setAssigneeIds(prev)
       toast.error(result.error)
+      return
     }
+    toast.success(adding ? `${member?.name ?? 'Assignee'} added` : `${member?.name ?? 'Assignee'} removed`)
   }
 
   const assignedMembers = candidatePool.filter(m => assigneeIds.includes(m.id))

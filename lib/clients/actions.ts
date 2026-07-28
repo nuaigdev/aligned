@@ -2,6 +2,34 @@
 
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { requireTeamRole } from '@/lib/auth/team-role-guard'
+import { toSlug } from '@/lib/utils'
+
+/**
+ * Only admins add clients — the nav/button being hidden from
+ * managers and members is a UI nicety, not the boundary (RLS
+ * migration 025 restricts the INSERT itself too, in case anything
+ * ever calls the table directly).
+ */
+export async function createClient(name: string): Promise<{ id: string } | { error: string }> {
+  const check = await requireTeamRole(['admin'])
+  if ('error' in check) return check
+  if (!name.trim()) return { error: 'Give the client a name.' }
+
+  const supabase = createSupabaseServerClient()
+  const { data, error } = await supabase
+    .from('clients')
+    .insert({ name: name.trim(), slug: toSlug(name) })
+    .select('id')
+    .single()
+
+  if (error) {
+    return { error: error.message.includes('unique') ? 'A client with this name already exists.' : error.message }
+  }
+
+  revalidatePath('/dashboard/clients')
+  return { id: data.id }
+}
 
 /**
  * Deletes the client and, via ON DELETE CASCADE, every project, ticket,

@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { Paperclip, Upload } from 'lucide-react'
 import { uploadPortalAttachment } from '@/lib/tickets/portal-actions'
 import { formatFileSize, formatDate } from '@/lib/utils'
+import { ImageLightbox, isImageFile } from '@/components/dashboard/ImageLightbox'
 
 const FILE_ICON: Record<string, string> = {
   pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊',
@@ -32,6 +33,7 @@ export default function PortalTicketAttachments({
   const router = useRouter()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
 
   async function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -82,24 +84,35 @@ export default function PortalTicketAttachments({
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-        {initialDocuments.map(doc => (
-          <a
-            key={doc.id}
-            href={doc.signedUrl ?? undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px', textDecoration: 'none' }}
-          >
-            <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.name}</div>
-              <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
-                {doc.file_size_bytes ? `${formatFileSize(doc.file_size_bytes)} · ` : ''}{formatDate(doc.created_at)} · {doc.shared_by === 'team' ? 'From NuAIg' : 'You attached this'}
+        {initialDocuments.map(doc => {
+          const isImage = isImageFile(doc.file_type)
+          return (
+            <a
+              key={doc.id}
+              href={doc.signedUrl ?? undefined}
+              target={isImage ? undefined : '_blank'}
+              rel="noopener noreferrer"
+              onClick={e => {
+                if (isImage && doc.signedUrl) {
+                  e.preventDefault()
+                  setLightbox({ url: doc.signedUrl, name: doc.name })
+                }
+              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px', textDecoration: 'none' }}
+            >
+              <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.name}</div>
+                <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                  {doc.file_size_bytes ? `${formatFileSize(doc.file_size_bytes)} · ` : ''}{formatDate(doc.created_at)} · {doc.shared_by === 'team' ? 'From NuAIg' : 'You attached this'}
+                </div>
               </div>
-            </div>
-          </a>
-        ))}
+            </a>
+          )
+        })}
       </div>
+
+      <ImageLightbox src={lightbox?.url ?? null} alt={lightbox?.name ?? ''} onClose={() => setLightbox(null)} />
     </div>
   )
 }

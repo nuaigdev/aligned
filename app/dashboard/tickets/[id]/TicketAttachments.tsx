@@ -4,7 +4,8 @@ import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { formatFileSize, formatDate } from '@/lib/utils'
-import { Paperclip, Download, Trash2, Upload } from 'lucide-react'
+import { Paperclip, Download, Trash2, Upload, Eye } from 'lucide-react'
+import { ImageLightbox, isImageFile } from '@/components/dashboard/ImageLightbox'
 import type { Document } from '@/types'
 
 const FILE_ICON: Record<string, string> = {
@@ -26,6 +27,7 @@ export default function TicketAttachments({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
 
   async function uploadFile(file: File) {
     setUploading(true)
@@ -74,6 +76,16 @@ export default function TicketAttachments({
     if (data?.signedUrl) window.open(data.signedUrl, '_blank')
   }
 
+  async function handleOpen(doc: Document) {
+    const { data } = await supabase.storage.from('project-documents').createSignedUrl(doc.storage_path, 3600)
+    if (!data?.signedUrl) return
+    if (isImageFile(doc.file_type)) {
+      setLightbox({ url: data.signedUrl, name: doc.name })
+    } else {
+      window.open(data.signedUrl, '_blank')
+    }
+  }
+
   async function handleDelete(doc: Document) {
     if (!confirm(`Delete "${doc.name}"? This cannot be undone.`)) return
     await supabase.storage.from('project-documents').remove([doc.storage_path])
@@ -113,26 +125,42 @@ export default function TicketAttachments({
           <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>Drop a file here, or click Upload</span>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            {initialDocuments.map(doc => (
-              <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px' }}>
-                <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.name}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
-                    {doc.file_size_bytes ? formatFileSize(doc.file_size_bytes) : ''} · {formatDate(doc.created_at)}
-                  </div>
+            {initialDocuments.map(doc => {
+              const isImage = isImageFile(doc.file_type)
+              return (
+                <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px' }}>
+                  <button
+                    onClick={() => handleOpen(doc)}
+                    title={isImage ? 'View' : 'Open'}
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, background: 'none', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                  >
+                    <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.name}</div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                        {doc.file_size_bytes ? formatFileSize(doc.file_size_bytes) : ''} · {formatDate(doc.created_at)}
+                      </div>
+                    </div>
+                  </button>
+                  {isImage && (
+                    <button onClick={() => handleOpen(doc)} title="View" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}>
+                      <Eye size={13} />
+                    </button>
+                  )}
+                  <button onClick={() => handleDownload(doc)} title="Download" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}>
+                    <Download size={13} />
+                  </button>
+                  <button onClick={() => handleDelete(doc)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}>
+                    <Trash2 size={13} />
+                  </button>
                 </div>
-                <button onClick={() => handleDownload(doc)} title="Download" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}>
-                  <Download size={13} />
-                </button>
-                <button onClick={() => handleDelete(doc)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}>
-                  <Trash2 size={13} />
-                </button>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>
+
+      <ImageLightbox src={lightbox?.url ?? null} alt={lightbox?.name ?? ''} onClose={() => setLightbox(null)} />
     </div>
   )
 }

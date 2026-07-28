@@ -86,7 +86,11 @@ export default function DashboardHeader({ member }: Props) {
         <NotificationBell />
 
         {member && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
+          <Link
+            href="/dashboard/profile"
+            title="Profile"
+            style={{ display: 'flex', alignItems: 'center', gap: '9px', textDecoration: 'none' }}
+          >
             <div style={{
               width: '30px', height: '30px', borderRadius: '50%',
               background: 'var(--brand-50)', color: 'var(--brand-800)',
@@ -101,7 +105,7 @@ export default function DashboardHeader({ member }: Props) {
               </div>
               <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', textTransform: 'capitalize' }}>{member.role}</div>
             </div>
-          </div>
+          </Link>
         )}
 
         <button

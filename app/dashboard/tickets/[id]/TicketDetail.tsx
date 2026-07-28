@@ -18,7 +18,7 @@ const inputStyle: React.CSSProperties = {
  * TicketPropertiesPanel, docked to the side, matching how an actual
  * issue tracker splits "content" from "fields."
  */
-export default function TicketDetail({ ticket }: { ticket: Ticket }) {
+export default function TicketDetail({ ticket, clientCode }: { ticket: Ticket; clientCode?: string }) {
   const [title, setTitle] = useState(ticket.title)
   const [description, setDescription] = useState(ticket.description ?? '')
   const [editing, setEditing] = useState(false)
@@ -51,7 +51,7 @@ export default function TicketDetail({ ticket }: { ticket: Ticket }) {
   return (
     <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '20px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px' }}>
-        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>{formatTicketRef(ticket.ref_number)}</div>
+        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>{formatTicketRef(ticket.ref_number, clientCode)}</div>
         {!editing && (
           <button onClick={startEditing} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brand-600)', fontSize: '12px', flexShrink: 0 }}>
             <Pencil size={12} /> Edit

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { createTicketNotifications, getActorName } from '@/lib/notifications/create'
 import { sendTicketReplyEmail, sendTicketResolvedEmail } from '@/lib/email/index'
+import { ticketClientCode } from '@/lib/utils'
 import type { CreateTicketInput, TicketStatus, TicketPriority } from '@/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -102,7 +103,7 @@ export async function updateTicket(
   if (patch.status) {
     const { data: ticket } = await supabase
       .from('tickets')
-      .select('title, ref_number, client_id, created_by_team_member_id, ticket_assignees(team_member_id)')
+      .select('title, ref_number, client_id, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug)')
       .eq('id', ticketId)
       .maybeSingle()
 
@@ -122,7 +123,8 @@ export async function updateTicket(
 
       if (patch.status === 'resolved') {
         const emails = await activeClientContactEmails(supabase, ticket.client_id)
-        await sendTicketResolvedEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title })
+        const clientCode = (ticket.clients as any)?.slug ? ticketClientCode((ticket.clients as any).slug) : undefined
+        await sendTicketResolvedEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, clientCode })
       }
     }
   }
@@ -211,7 +213,7 @@ export async function postTicketComment(
 
   const { data: ticket } = await supabase
     .from('tickets')
-    .select('title, ref_number, client_id, created_by_team_member_id, ticket_assignees(team_member_id)')
+    .select('title, ref_number, client_id, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug)')
     .eq('id', ticketId)
     .maybeSingle()
 
@@ -231,7 +233,8 @@ export async function postTicketComment(
     // because we email on every team comment by default.
     if (visibleToClient) {
       const emails = await activeClientContactEmails(supabase, ticket.client_id)
-      await sendTicketReplyEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor })
+      const clientCode = (ticket.clients as any)?.slug ? ticketClientCode((ticket.clients as any).slug) : undefined
+      await sendTicketReplyEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor, clientCode })
     }
   }
 

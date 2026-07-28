@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation'
 import { requireClientSession, getSessionClient } from '@/lib/portal/session-guard'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { formatDate, formatTicketRef, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
+import { formatDate, formatTicketRef, ticketClientCode, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import { TICKET_PRIORITY_LABELS, type TicketPriority } from '@/types'
 import PortalTicketComments from './PortalTicketComments'
 import PortalTicketAttachments from './PortalTicketAttachments'
@@ -85,7 +85,7 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '4px' }}>
           <div>
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>
-              {formatTicketRef(ticket.ref_number)}{ticket.projects && ` · ${(ticket.projects as any).name}`}
+              {formatTicketRef(ticket.ref_number, ticketClientCode(client.slug))}{ticket.projects && ` · ${(ticket.projects as any).name}`}
             </div>
             <h1 style={{ fontSize: '19px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>{ticket.title}</h1>
           </div>

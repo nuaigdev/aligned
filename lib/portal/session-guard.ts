@@ -22,7 +22,7 @@ export async function getSessionClient(): Promise<Client> {
   const supabase = createServiceRoleClient()
   const { data: client } = await supabase
     .from('clients')
-    .select('id, name, slug, manager_id, login_id, must_change_password, last_login_at, created_at, updated_at')
+    .select('id, name, slug, manager_id, login_id, must_change_password, last_login_at, last_portal_seen_at, created_at, updated_at')
     .eq('id', session.clientId)
     .maybeSingle()
 

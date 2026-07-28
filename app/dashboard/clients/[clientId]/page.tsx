@@ -21,8 +21,9 @@ export const dynamic = 'force-dynamic'
 
 export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
   const supabase = createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }, { count: ticketCount }] = await Promise.all([
+  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }, { count: ticketCount }, { data: me }] = await Promise.all([
     supabase
       .from('clients')
       .select('*, projects(id, name, status, started_at, updated_at)')
@@ -52,11 +53,13 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
       .from('tickets')
       .select('id', { count: 'exact', head: true })
       .eq('client_id', params.clientId),
+    user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
   ])
 
   if (!client) notFound()
 
   const projects = (client.projects as any[]) ?? []
+  const canCreateProject = me?.role === 'admin' || me?.role === 'manager'
 
   return (
     <div>
@@ -72,22 +75,24 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
               Added {formatDate(client.created_at)} · {projects.length} project{projects.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <Link
-            href={`/dashboard/projects/new?client=${client.id}`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '7px 14px',
-              background: '#EA580C',
-              color: '#fff',
-              borderRadius: '8px',
-              fontSize: '13px',
-              fontWeight: 500,
-              textDecoration: 'none',
-            }}
-          >
-            + New project
-          </Link>
+          {canCreateProject && (
+            <Link
+              href={`/dashboard/projects/new?client=${client.id}`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '7px 14px',
+                background: '#EA580C',
+                color: '#fff',
+                borderRadius: '8px',
+                fontSize: '13px',
+                fontWeight: 500,
+                textDecoration: 'none',
+              }}
+            >
+              + New project
+            </Link>
+          )}
         </div>
       </div>
 
@@ -141,12 +146,14 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
               border: '0.5px solid var(--border-default)', borderRadius: '10px',
             }}>
               <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginBottom: '6px' }}>No projects yet</div>
-              <Link
-                href={`/dashboard/projects/new?client=${client.id}`}
-                style={{ fontSize: '13px', color: '#EA580C', textDecoration: 'none' }}
-              >
-                Create first project →
-              </Link>
+              {canCreateProject && (
+                <Link
+                  href={`/dashboard/projects/new?client=${client.id}`}
+                  style={{ fontSize: '13px', color: '#EA580C', textDecoration: 'none' }}
+                >
+                  Create first project →
+                </Link>
+              )}
             </div>
           )}
         </div>

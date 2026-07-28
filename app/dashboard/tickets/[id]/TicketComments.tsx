@@ -1,11 +1,12 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { Send, Pencil, Trash2, X, Check, Lock, Eye } from 'lucide-react'
 import { getInitials, formatDateTime } from '@/lib/utils'
 import { postTicketComment, editTicketComment, deleteTicketComment } from '@/lib/tickets/team-actions'
+import { createBrowserClient } from '@/lib/supabase/client'
 import type { TicketComment, TeamMember } from '@/types'
 
 interface EnrichedComment extends TicketComment {
@@ -26,6 +27,42 @@ export default function TicketComments({
 }) {
   const [comments, setComments] = useState(initialComments)
   const [editingId, setEditingId] = useState<string | null>(null)
+
+  // Team members have real Supabase Auth sessions, so unlike the client
+  // portal this can use genuine Realtime — new/edited/deleted comments show
+  // up live instead of needing a page refresh (migration 026 added
+  // ticket_comments to the publication; RLS from migration 010 still governs
+  // what this subscriber actually receives).
+  useEffect(() => {
+    const supabase = createBrowserClient()
+    const channel = supabase
+      .channel(`ticket-comments:${ticketId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'ticket_comments', filter: `ticket_id=eq.${ticketId}` }, payload => {
+        const row = payload.new as any
+        setComments(cur => {
+          if (cur.some(c => c.id === row.id)) return cur
+          return [...cur, {
+            ...row,
+            author_member: row.created_by_team_member_id ? candidateMentions.find(m => m.id === row.created_by_team_member_id) : undefined,
+            mention_members: (row.mentioned_team_member_ids ?? []).map((id: string) => candidateMentions.find(m => m.id === id)).filter(Boolean),
+          } as EnrichedComment]
+        })
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'ticket_comments', filter: `ticket_id=eq.${ticketId}` }, payload => {
+        const row = payload.new as any
+        setComments(cur => cur.map(c => (c.id === row.id
+          ? { ...c, body: row.body, edited_at: row.edited_at, mentioned_team_member_ids: row.mentioned_team_member_ids, visible_to_client: row.visible_to_client }
+          : c)))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'ticket_comments', filter: `ticket_id=eq.${ticketId}` }, payload => {
+        const oldRow = payload.old as any
+        setComments(cur => cur.filter(c => c.id !== oldRow.id))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticketId])
 
   async function handlePost(body: string, mentionedIds: string[], visibleToClient: boolean) {
     const result = await postTicketComment(ticketId, body, mentionedIds, visibleToClient)

@@ -9,12 +9,17 @@ export const dynamic = 'force-dynamic'
 
 export default async function ClientsPage() {
   const supabase = createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const { data: clients } = await supabase
-    .from('clients')
-    .select('id, name, slug, created_at, login_id, manager_id, projects(id), manager:team_members(name)')
-    .order('name')
+  const [{ data: clients }, { data: me }] = await Promise.all([
+    supabase
+      .from('clients')
+      .select('id, name, slug, created_at, login_id, manager_id, projects(id), manager:team_members(name)')
+      .order('name'),
+    user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+  ])
 
+  const canCreate = me?.role === 'admin'
   const total = clients?.length ?? 0
   const withManager = clients?.filter(c => c.manager_id).length ?? 0
   const withLogin = clients?.filter(c => c.login_id).length ?? 0
@@ -26,23 +31,25 @@ export default async function ClientsPage() {
           <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>Clients</h1>
           <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>{total} total</p>
         </div>
-        <Link
-          href="/dashboard/clients/new"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            padding: '7px 14px',
-            background: 'var(--brand-600)',
-            color: '#fff',
-            borderRadius: '8px',
-            fontSize: '13px',
-            fontWeight: 500,
-            textDecoration: 'none',
-          }}
-        >
-          <Plus size={14} /> New client
-        </Link>
+        {canCreate && (
+          <Link
+            href="/dashboard/clients/new"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '7px 14px',
+              background: 'var(--brand-600)',
+              color: '#fff',
+              borderRadius: '8px',
+              fontSize: '13px',
+              fontWeight: 500,
+              textDecoration: 'none',
+            }}
+          >
+            <Plus size={14} /> New client
+          </Link>
+        )}
       </div>
 
       {total > 0 && (
@@ -120,9 +127,9 @@ export default async function ClientsPage() {
           <EmptyState
             icon={Building2}
             title="No clients yet"
-            description="Add your first client to start tracking projects, tickets, and decisions for them."
-            actionLabel="Add your first client"
-            actionHref="/dashboard/clients/new"
+            description={canCreate ? 'Add your first client to start tracking projects, tickets, and decisions for them.' : 'An admin needs to add a client before you can start tracking projects, tickets, and decisions for them.'}
+            actionLabel={canCreate ? 'Add your first client' : undefined}
+            actionHref={canCreate ? '/dashboard/clients/new' : undefined}
           />
         )}
       </div>

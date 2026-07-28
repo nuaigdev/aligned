@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
+import { createProject } from '@/lib/projects/actions'
 import Link from 'next/link'
 
 interface Client { id: string; name: string }
@@ -53,25 +54,21 @@ export default function NewProjectForm({ defaultClientId }: { defaultClientId?: 
     setLoading(true)
     setError(null)
 
-    const { data, error: err } = await supabase
-      .from('projects')
-      .insert({
-        name: name.trim(),
-        client_id: clientId,
-        description: description.trim() || null,
-        started_at: startDate || null,
-        planned_end_at: endDate || null,
-      })
-      .select('id')
-      .single()
+    const result = await createProject({
+      name: name.trim(),
+      clientId,
+      description: description.trim() || undefined,
+      startedAt: startDate || undefined,
+      plannedEndAt: endDate || undefined,
+    })
 
-    if (err) {
-      setError(err.message)
+    if ('error' in result) {
+      setError(result.error)
       setLoading(false)
       return
     }
 
-    router.push(`/dashboard/projects/${data.id}`)
+    router.push(`/dashboard/projects/${result.id}`)
   }
 
   const canSubmit = name.trim() && clientId && !loading

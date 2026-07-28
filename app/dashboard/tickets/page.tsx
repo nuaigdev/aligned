@@ -17,7 +17,7 @@ export default async function TicketsPage() {
       .from('tickets')
       .select(`
         *,
-        clients(name),
+        clients(name, slug),
         ticket_assignees(team_member_id, team_members!ticket_assignees_team_member_id_fkey(id, name, role, manager_id, email, is_active, created_at, updated_at)),
         ticket_comments(count)
       `)
@@ -38,6 +38,7 @@ export default async function TicketsPage() {
   const tickets: BoardTicket[] = (rawTickets ?? []).map((t: any) => ({
     ...t,
     client_name: t.clients?.name,
+    client_slug: t.clients?.slug,
     assignee_members: (t.ticket_assignees ?? []).map((a: any) => a.team_members).filter(Boolean),
     comment_count: t.ticket_comments?.[0]?.count ?? 0,
   }))

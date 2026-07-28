@@ -33,6 +33,9 @@ yarn-error.log*
 # one-off admin/setup scripts — may contain real credentials, never committed
 /scripts
 
+# supabase CLI local state (project ref, pooler URL) — machine-specific
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,12 +1,14 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { Send, Pencil, Trash2, X, Check } from 'lucide-react'
-import { postPortalComment, editPortalComment, deletePortalComment } from '@/lib/tickets/portal-actions'
+import { postPortalComment, editPortalComment, deletePortalComment, getPortalTicketComments } from '@/lib/tickets/portal-actions'
 import { formatDateTime, getInitials } from '@/lib/utils'
 import ContactNamePicker, { useRememberedContactName } from '../ContactNamePicker'
+
+const POLL_INTERVAL_MS = 6000
 
 interface CandidateMember {
   id: string
@@ -36,6 +38,23 @@ export default function PortalTicketComments({
   const [comments, setComments] = useState(initialComments)
   const [contactName, setContactName] = useRememberedContactName()
   const [editingId, setEditingId] = useState<string | null>(null)
+
+  // No Supabase Auth session to authenticate a Realtime subscription with
+  // here (see the equivalent dashboard-side comment in TicketComments.tsx),
+  // so polling stands in — replies show up within a few seconds instead of
+  // requiring a manual refresh.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const result = await getPortalTicketComments(ticketId)
+      if ('error' in result) return
+      setComments(cur => {
+        const same = cur.length === result.comments.length
+          && cur.every((c, i) => c.id === result.comments[i].id && c.body === result.comments[i].body && c.edited_at === result.comments[i].edited_at)
+        return same ? cur : (result.comments as PortalComment[])
+      })
+    }, POLL_INTERVAL_MS)
+    return () => clearInterval(interval)
+  }, [ticketId])
 
   async function handleSubmit(body: string, mentionedIds: string[]) {
     if (!contactName.trim()) {

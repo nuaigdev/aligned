@@ -6,7 +6,7 @@ import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { LayoutGrid, List as ListIcon, Search, Plus, Inbox, ArrowUp, ArrowDown, ChevronDown } from 'lucide-react'
 import { updateTicket, setTicketAssignees } from '@/lib/tickets/team-actions'
-import { formatTicketRef, formatRelative, getInitials, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
+import { formatTicketRef, ticketClientCode, formatRelative, getInitials, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import { TICKET_LANES, TICKET_PRIORITY_LABELS } from '@/types'
 import type { TicketStatus, TicketPriority, TeamMember, Client, Project } from '@/types'
 import TicketCard, { type BoardTicket } from './TicketCard'
@@ -65,7 +65,10 @@ export default function TicketsBoard({
     if ('error' in result) {
       setTickets(prev)
       toast.error(result.error)
+      return
     }
+    const label = field === 'priority' ? TICKET_PRIORITY_LABELS[value as TicketPriority] : TICKET_STATUS_CONFIG[value as TicketStatus].label
+    toast.success(`${field === 'priority' ? 'Priority' : 'Status'} set to ${label}`)
   }
 
   async function applyAssigneeChange(ticketId: string, memberIds: string[]) {
@@ -76,7 +79,9 @@ export default function TicketsBoard({
     if ('error' in result) {
       setTickets(prev)
       toast.error(result.error)
+      return
     }
+    toast.success(members.length > 0 ? `Assigned to ${members.map(m => m.name).join(', ')}` : 'Unassigned')
   }
 
   function handleDrop(e: React.DragEvent, laneKey: string) {
@@ -344,7 +349,7 @@ export default function TicketsBoard({
                         {ticket.title}
                       </div>
                       <div style={{ fontSize: '10px', color: 'var(--text-tertiary)', marginTop: '1px', fontFamily: 'var(--font-geist-mono, monospace)' }}>
-                        {formatTicketRef(ticket.ref_number)}
+                        {formatTicketRef(ticket.ref_number, ticket.client_slug && ticketClientCode(ticket.client_slug))}
                       </div>
                     </div>
                     <div style={{ flex: '0 0 140px', fontSize: '12px', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

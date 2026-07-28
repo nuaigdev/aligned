@@ -5,6 +5,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { requireClientSession } from '@/lib/portal/session-guard'
 import { createTicketNotifications } from '@/lib/notifications/create'
 import { sendTicketConfirmationEmail } from '@/lib/email/index'
+import { ticketClientCode } from '@/lib/utils'
 
 export async function createPortalTicket(input: {
   title: string
@@ -54,7 +55,7 @@ export async function createPortalTicket(input: {
 
   // Notify the client's assigned Manager in-app — they're a real Supabase
   // Auth session, unlike the client's shared login.
-  const { data: client } = await supabase.from('clients').select('name, manager_id').eq('id', session.clientId).maybeSingle()
+  const { data: client } = await supabase.from('clients').select('name, slug, manager_id').eq('id', session.clientId).maybeSingle()
   if (client?.manager_id) {
     await createTicketNotifications(
       supabase, [client.manager_id], null, 'ticket_updated',
@@ -78,6 +79,7 @@ export async function createPortalTicket(input: {
     refNumber: ticket.ref_number,
     title: input.title.trim(),
     raisedByName: input.contact_name.trim(),
+    clientCode: client?.slug ? ticketClientCode(client.slug) : undefined,
   })
 
   revalidatePath('/portal/tickets')
@@ -203,6 +205,46 @@ export async function deletePortalComment(commentId: string): Promise<{ ok: true
   revalidatePath(`/portal/tickets/${comment.ticket_id}`)
   revalidatePath(`/dashboard/tickets/${comment.ticket_id}`)
   return { ok: true }
+}
+
+/**
+ * Polled from PortalTicketComments.tsx — the client portal session isn't a
+ * Supabase Auth principal, so it can't authenticate a Realtime subscription
+ * the way the dashboard side does (TicketComments.tsx); polling this action
+ * every few seconds is the substitute so replies show up without a manual
+ * refresh.
+ */
+export async function getPortalTicketComments(ticketId: string): Promise<
+  | { comments: Array<{ id: string; body: string; created_at: string; edited_at: string | null; created_by_client_name: string | null; author_name: string | null }> }
+  | { error: string }
+> {
+  const session = await requireClientSession()
+  const supabase = createServiceRoleClient()
+
+  const { data: ticket } = await supabase.from('tickets').select('client_id').eq('id', ticketId).maybeSingle()
+  if (!ticket || ticket.client_id !== session.clientId) return { error: 'That ticket is not part of your account.' }
+
+  const [{ data: comments }, { data: teamMembers }] = await Promise.all([
+    supabase
+      .from('ticket_comments')
+      .select('*')
+      .eq('ticket_id', ticketId)
+      .or('created_by_client_name.not.is.null,visible_to_client.eq.true')
+      .order('created_at'),
+    supabase.from('team_members').select('id, name').eq('is_active', true),
+  ])
+
+  const authorNameById = new Map((teamMembers ?? []).map(m => [m.id, m.name]))
+  const enriched = (comments ?? []).map(c => ({
+    id: c.id,
+    body: c.body,
+    created_at: c.created_at,
+    edited_at: c.edited_at,
+    created_by_client_name: c.created_by_client_name,
+    author_name: c.created_by_team_member_id ? authorNameById.get(c.created_by_team_member_id) ?? null : null,
+  }))
+
+  return { comments: enriched }
 }
 
 export async function uploadPortalAttachment(formData: FormData): Promise<{ ok: true } | { error: string }> {

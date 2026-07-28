@@ -94,8 +94,29 @@ export const TICKET_PRIORITY_COLOR: Record<string, string> = {
 }
 
 // ── Ticket ref formatting ──────────────────────────────────────
-export function formatTicketRef(refNumber: number): string {
-  return `#T-${String(refNumber).padStart(3, '0')}`
+// A client's short code is derived from their (already-unique) slug
+// rather than a separate column — collisions between two clients'
+// codes are harmless because ref_number itself comes from one global
+// sequence (ticket_ref_seq), so the full string is always unique;
+// the code is purely a traceability aid ("which client is this?").
+export function ticketClientCode(slug: string): string {
+  return slug.replace(/-/g, '').slice(0, 4).toUpperCase()
+}
+
+export function formatTicketRef(refNumber: number, clientCode?: string): string {
+  const num = String(refNumber).padStart(3, '0')
+  return clientCode ? `${clientCode}-${num}` : `#T-${num}`
+}
+
+// ── Client slug ────────────────────────────────────────────────
+export function toSlug(value: string): string {
+  return value.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')
+}
+
+// ── Portal login URL ───────────────────────────────────────────
+export function getPortalLoginUrl(): string {
+  const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  return `${base}/portal/login`
 }
 
 // ── Initials from name ────────────────────────────────────────
