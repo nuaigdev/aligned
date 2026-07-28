@@ -5,6 +5,8 @@ import { formatTicketRef } from '@/lib/utils'
 import TicketDetail from './TicketDetail'
 import TicketComments from './TicketComments'
 
+export const dynamic = 'force-dynamic'
+
 export default async function TicketDetailPage({ params }: { params: { id: string } }) {
   const supabase = createSupabaseServerClient()
 

@@ -4,6 +4,8 @@ import Link from 'next/link'
 import MilestonesPanel from './MilestonesPanel'
 import type { Milestone } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 export default async function MilestonesPage({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
 

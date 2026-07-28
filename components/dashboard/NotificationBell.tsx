@@ -37,7 +37,7 @@ export default function NotificationBell() {
               exit={{ opacity: 0, y: -6, scale: 0.98 }}
               transition={{ duration: 0.15 }}
               style={{
-                position: 'absolute', bottom: '32px', left: 0, width: '300px', maxHeight: '360px', overflowY: 'auto',
+                position: 'absolute', top: 'calc(100% + 10px)', right: 0, width: '320px', maxHeight: '400px', overflowY: 'auto',
                 background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px',
                 boxShadow: '0 12px 28px rgba(0,0,0,0.18)', zIndex: 50,
               }}

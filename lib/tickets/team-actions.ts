@@ -76,6 +76,8 @@ export async function createTicket(
   )
 
   revalidatePath('/dashboard/tickets')
+  revalidatePath('/portal/tickets')
+  revalidatePath('/portal')
   return { id: ticket.id }
 }
 
@@ -127,6 +129,8 @@ export async function updateTicket(
 
   revalidatePath('/dashboard/tickets')
   revalidatePath(`/dashboard/tickets/${ticketId}`)
+  revalidatePath('/portal/tickets')
+  revalidatePath(`/portal/tickets/${ticketId}`)
   return { ok: true }
 }
 
@@ -225,6 +229,7 @@ export async function postTicketComment(
   }
 
   revalidatePath(`/dashboard/tickets/${ticketId}`)
+  revalidatePath(`/portal/tickets/${ticketId}`)
   return { id: comment.id }
 }
 

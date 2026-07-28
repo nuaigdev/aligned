@@ -2,6 +2,8 @@ import { getSessionClient } from '@/lib/portal/session-guard'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import NewPortalTicketForm from './NewPortalTicketForm'
 
+export const dynamic = 'force-dynamic'
+
 export default async function NewPortalTicketPage() {
   const client = await getSessionClient()
   const supabase = createServiceRoleClient()

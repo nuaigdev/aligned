@@ -9,6 +9,8 @@ const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }
   amended:          { label: 'Amended',          bg: 'var(--info-bg)',      color: 'var(--info-text)' },
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalDecisionsPage({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()

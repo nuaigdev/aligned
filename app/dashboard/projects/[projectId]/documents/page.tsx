@@ -4,6 +4,8 @@ import Link from 'next/link'
 import DocumentsPanel from './DocumentsPanel'
 import type { Document } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DocumentsPage({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
 

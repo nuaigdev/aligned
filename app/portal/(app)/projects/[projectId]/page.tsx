@@ -3,6 +3,8 @@ import { getSessionProject } from '@/lib/portal/session-guard'
 import { formatDate, maskEmail, calculateProgress } from '@/lib/utils'
 import Link from 'next/link'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalProjectOverviewPage({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()

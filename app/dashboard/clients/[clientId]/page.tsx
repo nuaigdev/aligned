@@ -15,6 +15,8 @@ const STATUS_LABEL: Record<string, string> = {
   on_hold: 'On hold', completed: 'Completed', archived: 'Archived',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
   const supabase = createSupabaseServerClient()
 

@@ -5,6 +5,8 @@ import { formatDate } from '@/lib/utils'
 import { PROJECT_STATUS_LABELS } from '@/lib/utils'
 import { TICKET_STATUS_CONFIG } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalHubPage() {
   const client = await getSessionClient()
   const supabase = createServiceRoleClient()

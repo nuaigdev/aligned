@@ -82,6 +82,10 @@ export async function createPortalTicket(input: {
 
   revalidatePath('/portal/tickets')
   revalidatePath('/portal')
+  // This ticket was raised from the portal — the dashboard board/detail
+  // pages need telling too, or the team keeps seeing a stale (pre-ticket)
+  // list until something else happens to revalidate that route.
+  revalidatePath('/dashboard/tickets')
   return { id: ticket.id }
 }
 
@@ -132,5 +136,7 @@ export async function postPortalComment(input: {
   )
 
   revalidatePath(`/portal/tickets/${input.ticket_id}`)
+  revalidatePath('/dashboard/tickets')
+  revalidatePath(`/dashboard/tickets/${input.ticket_id}`)
   return { id: comment.id }
 }

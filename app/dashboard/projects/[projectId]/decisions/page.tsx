@@ -4,6 +4,8 @@ import Link from 'next/link'
 import DecisionsPanel from './DecisionsPanel'
 import type { Decision } from '@/types'
 
+export const dynamic = 'force-dynamic'
+
 export default async function DecisionsPage({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
 

@@ -2,6 +2,8 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getSessionProject } from '@/lib/portal/session-guard'
 import DocumentsPortalPanel from './DocumentsPortalPanel'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalDocumentsPage({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()

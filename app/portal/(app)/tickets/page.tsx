@@ -3,6 +3,8 @@ import { getSessionClient } from '@/lib/portal/session-guard'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { formatRelative, formatTicketRef, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalTicketsPage({ searchParams }: { searchParams: { status?: string } }) {
   const client = await getSessionClient()
   const supabase = createServiceRoleClient()

@@ -18,6 +18,8 @@ const DOT_COLOR: Record<string, string> = {
   reopened:         '#993C1D',
 }
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalMilestonesPage({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()

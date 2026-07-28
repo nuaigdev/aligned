@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import DashboardSidebar from '@/components/dashboard/Sidebar'
+import DashboardHeader from '@/components/dashboard/Header'
 import { NotificationsProvider } from '@/hooks/useNotifications'
 
 export default async function DashboardLayout({
@@ -21,8 +21,8 @@ export default async function DashboardLayout({
 
   return (
     <NotificationsProvider teamMemberId={user.id}>
-      <div style={{ display: 'flex', height: '100vh', overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
-        <DashboardSidebar member={member} />
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', background: 'var(--bg-tertiary)' }}>
+        <DashboardHeader member={member} />
         <main style={{
           flex: 1,
           overflow: 'auto',

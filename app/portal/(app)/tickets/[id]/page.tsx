@@ -5,6 +5,8 @@ import { formatDate, formatTicketRef, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLO
 import { TICKET_PRIORITY_LABELS, type TicketPriority } from '@/types'
 import PortalTicketComments from './PortalTicketComments'
 
+export const dynamic = 'force-dynamic'
+
 export default async function PortalTicketDetailPage({ params }: { params: { id: string } }) {
   const session = await requireClientSession()
   const client = await getSessionClient()
