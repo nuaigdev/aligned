@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { getSessionClient } from '@/lib/portal/session-guard'
 import { createServiceRoleClient } from '@/lib/supabase/server'
-import { formatDate } from '@/lib/utils'
-import { PROJECT_STATUS_LABELS } from '@/lib/utils'
-import { TICKET_STATUS_CONFIG } from '@/lib/utils'
+import { formatDate, PROJECT_STATUS_LABELS, TICKET_STATUS_CONFIG } from '@/lib/utils'
+import { Plus, FolderKanban } from 'lucide-react'
+import { EmptyState } from '@/components/dashboard/EmptyState'
 
 export const dynamic = 'force-dynamic'
 
@@ -33,28 +33,39 @@ export default async function PortalHubPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div className="animate-in">
+        <h1 style={{ fontSize: '19px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
+          Welcome, {client.name}
+        </h1>
+        <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+          Track your tickets and projects with NuAIg here. Something on your mind? Raise a ticket and we'll get back to you.
+        </p>
+      </div>
+
       {/* Tickets summary */}
-      <div style={{
+      <div className="animate-in" style={{
         background: 'var(--bg-primary)',
         border: '0.5px solid var(--border-default)',
         borderRadius: '10px',
         padding: '18px 20px',
+        animationDelay: '40ms',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
           <div>
-            <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)' }}>Tickets</div>
+            <div style={{ fontSize: '15px', fontWeight: 500, color: 'var(--text-primary)' }}>Your tickets</div>
             <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-              {openTotal > 0 ? `${openTotal} open ticket${openTotal === 1 ? '' : 's'}` : 'Nothing open right now'}
+              {openTotal > 0 ? `${openTotal} ticket${openTotal === 1 ? '' : 's'} still being worked on` : "Nothing open — you're all caught up"}
             </div>
           </div>
           <Link
             href="/portal/tickets/new"
             style={{
-              fontSize: '13px', fontWeight: 500, color: '#fff', background: '#EA580C',
+              display: 'flex', alignItems: 'center', gap: '6px',
+              fontSize: '13px', fontWeight: 500, color: '#fff', background: 'var(--brand-600)',
               padding: '8px 14px', borderRadius: '8px', textDecoration: 'none',
             }}
           >
-            + New ticket
+            <Plus size={14} /> New ticket
           </Link>
         </div>
 
@@ -63,6 +74,7 @@ export default async function PortalHubPage() {
             <Link
               key={status}
               href={`/portal/tickets?status=${status}`}
+              className="hover-card"
               style={{
                 background: 'var(--bg-tertiary)', borderRadius: '8px', padding: '10px 12px',
                 textDecoration: 'none', display: 'block',
@@ -80,28 +92,27 @@ export default async function PortalHubPage() {
       {/* Projects */}
       <div>
         <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '10px' }}>
-          Projects
+          Your projects
         </div>
 
         {(projects ?? []).length === 0 ? (
-          <div style={{
-            padding: '32px', textAlign: 'center', background: 'var(--bg-primary)',
-            border: '0.5px solid var(--border-default)', borderRadius: '10px',
-            fontSize: '13px', color: 'var(--text-tertiary)',
-          }}>
-            No projects yet
-          </div>
+          <EmptyState
+            icon={FolderKanban}
+            title="No projects yet"
+            description="Once NuAIg starts an engagement with you, it'll show up here with milestones, decisions, and documents."
+          />
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {(projects ?? []).map(project => (
+            {(projects ?? []).map((project, i) => (
               <Link
                 key={project.id}
                 href={`/portal/projects/${project.id}`}
+                className="hover-card animate-in"
                 style={{
                   display: 'flex', alignItems: 'center', gap: '12px',
                   padding: '13px 16px', background: 'var(--bg-primary)',
                   border: '0.5px solid var(--border-default)', borderRadius: '10px',
-                  textDecoration: 'none',
+                  textDecoration: 'none', animationDelay: `${80 + i * 30}ms`,
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>

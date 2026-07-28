@@ -4,6 +4,8 @@ import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import ContactsManager from './ContactsManager'
 import ClientAccessManager from './ClientAccessManager'
+import DeleteConfirmButton from '@/components/dashboard/DeleteConfirmButton'
+import { deleteClient } from '@/lib/clients/actions'
 import type { ClientContact } from '@/types'
 
 const STATUS_DOT: Record<string, string> = {
@@ -20,7 +22,7 @@ export const dynamic = 'force-dynamic'
 export default async function ClientDetailPage({ params }: { params: { clientId: string } }) {
   const supabase = createSupabaseServerClient()
 
-  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }] = await Promise.all([
+  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }, { count: ticketCount }] = await Promise.all([
     supabase
       .from('clients')
       .select('*, projects(id, name, status, started_at, updated_at)')
@@ -46,6 +48,10 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
       .in('role', ['admin', 'manager'])
       .eq('is_active', true)
       .order('name'),
+    supabase
+      .from('tickets')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', params.clientId),
   ])
 
   if (!client) notFound()
@@ -167,6 +173,29 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
         contacts={(activeContacts ?? []) as ClientContact[]}
         formerContacts={(formerContacts ?? []) as ClientContact[]}
       />
+
+      {/* Danger zone */}
+      <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '0.5px solid var(--border-default)' }}>
+        <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+          Danger zone
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px' }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>Delete this client</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+              Permanently removes {client.name} and everything under them.
+            </div>
+          </div>
+          <DeleteConfirmButton
+            entityLabel="client"
+            confirmText={client.name}
+            cascadeWarning={`This permanently deletes ${projects.length} project(s), ${ticketCount ?? 0} ticket(s), and all contacts, milestones, decisions, and documents for ${client.name}.`}
+            action={deleteClient}
+            entityId={client.id}
+            redirectTo="/dashboard/clients"
+          />
+        </div>
+      </div>
     </div>
   )
 }

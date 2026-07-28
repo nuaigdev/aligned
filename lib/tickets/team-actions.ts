@@ -187,7 +187,8 @@ export async function setTicketAssignees(
 export async function postTicketComment(
   ticketId: string,
   body: string,
-  mentionedTeamMemberIds: string[] = []
+  mentionedTeamMemberIds: string[] = [],
+  visibleToClient: boolean = false
 ): Promise<{ id: string } | { error: string }> {
   const teamMemberId = await currentTeamMemberId()
   if (!teamMemberId) return { error: 'Not signed in.' }
@@ -201,6 +202,7 @@ export async function postTicketComment(
       body: body.trim(),
       mentioned_team_member_ids: mentionedTeamMemberIds,
       created_by_team_member_id: teamMemberId,
+      visible_to_client: visibleToClient,
     })
     .select('id')
     .single()
@@ -224,8 +226,13 @@ export async function postTicketComment(
     await createTicketNotifications(supabase, audience, teamMemberId, 'ticket_commented', 'New comment', `${actor} commented on "${ticket.title}"`, ticketId)
     await createTicketNotifications(supabase, mentionedTeamMemberIds, teamMemberId, 'ticket_mentioned', 'You were mentioned', `${actor} mentioned you on "${ticket.title}"`, ticketId)
 
-    const emails = await activeClientContactEmails(supabase, ticket.client_id)
-    await sendTicketReplyEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor })
+    // Only a comment explicitly marked "reply to client" reaches the
+    // client's inbox — an internal note must never leak to the client just
+    // because we email on every team comment by default.
+    if (visibleToClient) {
+      const emails = await activeClientContactEmails(supabase, ticket.client_id)
+      await sendTicketReplyEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor })
+    }
   }
 
   revalidatePath(`/dashboard/tickets/${ticketId}`)
@@ -236,7 +243,8 @@ export async function postTicketComment(
 export async function editTicketComment(
   commentId: string,
   body: string,
-  mentionedTeamMemberIds: string[] = []
+  mentionedTeamMemberIds: string[] = [],
+  visibleToClient?: boolean
 ): Promise<{ ok: true } | { error: string }> {
   const supabase = createSupabaseServerClient()
   const { data: comment } = await supabase
@@ -247,11 +255,18 @@ export async function editTicketComment(
 
   const { error } = await supabase
     .from('ticket_comments')
-    .update({ body: body.trim(), mentioned_team_member_ids: mentionedTeamMemberIds })
+    .update({
+      body: body.trim(),
+      mentioned_team_member_ids: mentionedTeamMemberIds,
+      ...(visibleToClient !== undefined ? { visible_to_client: visibleToClient } : {}),
+    })
     .eq('id', commentId)
 
   if (error) return { error: error.message }
-  if (comment) revalidatePath(`/dashboard/tickets/${comment.ticket_id}`)
+  if (comment) {
+    revalidatePath(`/dashboard/tickets/${comment.ticket_id}`)
+    revalidatePath(`/portal/tickets/${comment.ticket_id}`)
+  }
   return { ok: true }
 }
 
@@ -265,6 +280,9 @@ export async function deleteTicketComment(commentId: string): Promise<{ ok: true
 
   const { error } = await supabase.from('ticket_comments').delete().eq('id', commentId)
   if (error) return { error: error.message }
-  if (comment) revalidatePath(`/dashboard/tickets/${comment.ticket_id}`)
+  if (comment) {
+    revalidatePath(`/dashboard/tickets/${comment.ticket_id}`)
+    revalidatePath(`/portal/tickets/${comment.ticket_id}`)
+  }
   return { ok: true }
 }

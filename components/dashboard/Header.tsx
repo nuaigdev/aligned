@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { getInitials } from '@/lib/utils'
-import { LayoutDashboard, FolderOpen, Users, LogOut, Ticket } from 'lucide-react'
+import { LayoutDashboard, FolderOpen, Users, LogOut, Ticket, UserCog } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import NotificationBell from './NotificationBell'
 
@@ -20,10 +20,13 @@ const NAV = [
   { href: '/dashboard/clients', label: 'Clients', icon: Users },
 ]
 
+const ADMIN_NAV = { href: '/dashboard/team', label: 'Team', icon: UserCog, exact: false }
+
 export default function DashboardHeader({ member }: Props) {
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createBrowserClient()
+  const nav = member?.role === 'admin' ? [...NAV, ADMIN_NAV] : NAV
 
   async function handleSignOut() {
     await supabase.auth.signOut()
@@ -45,7 +48,7 @@ export default function DashboardHeader({ member }: Props) {
       <Logo size={26} wordmarkSize={16} />
 
       <nav style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1, height: '100%' }}>
-        {NAV.map(({ href, label, icon: Icon, exact }) => {
+        {nav.map(({ href, label, icon: Icon, exact }) => {
           const active = exact ? pathname === href : pathname.startsWith(href)
           return (
             <Link

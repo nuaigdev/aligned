@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { Send, Pencil, Trash2, X, Check } from 'lucide-react'
+import { Send, Pencil, Trash2, X, Check, Lock, Eye } from 'lucide-react'
 import { getInitials, formatDateTime } from '@/lib/utils'
 import { postTicketComment, editTicketComment, deleteTicketComment } from '@/lib/tickets/team-actions'
 import type { TicketComment, TeamMember } from '@/types'
@@ -27,8 +27,8 @@ export default function TicketComments({
   const [comments, setComments] = useState(initialComments)
   const [editingId, setEditingId] = useState<string | null>(null)
 
-  async function handlePost(body: string, mentionedIds: string[]) {
-    const result = await postTicketComment(ticketId, body, mentionedIds)
+  async function handlePost(body: string, mentionedIds: string[], visibleToClient: boolean) {
+    const result = await postTicketComment(ticketId, body, mentionedIds, visibleToClient)
     if ('error' in result) {
       toast.error(result.error)
       return false
@@ -43,22 +43,23 @@ export default function TicketComments({
         mentioned_team_member_ids: mentionedIds,
         created_by_team_member_id: currentTeamMemberId,
         created_by_client_name: null,
+        visible_to_client: visibleToClient,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         author_member: candidateMentions.find(m => m.id === currentTeamMemberId),
         mention_members: candidateMentions.filter(m => mentionedIds.includes(m.id)),
-      },
+      } as EnrichedComment,
     ])
     return true
   }
 
-  async function handleEdit(id: string, body: string, mentionedIds: string[]) {
-    const result = await editTicketComment(id, body, mentionedIds)
+  async function handleEdit(id: string, body: string, mentionedIds: string[], visibleToClient: boolean) {
+    const result = await editTicketComment(id, body, mentionedIds, visibleToClient)
     if ('error' in result) {
       toast.error(result.error)
       return false
     }
-    setComments(cur => cur.map(c => (c.id === id ? { ...c, body, edited_at: new Date().toISOString(), mentioned_team_member_ids: mentionedIds } : c)))
+    setComments(cur => cur.map(c => (c.id === id ? { ...c, body, edited_at: new Date().toISOString(), mentioned_team_member_ids: mentionedIds, visible_to_client: visibleToClient } : c)))
     return true
   }
 
@@ -100,10 +101,21 @@ export default function TicketComments({
                 <motion.div key={c.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ display: 'flex', gap: '10px' }}>
                   <Avatar name={authorName} client={isClient} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px', flexWrap: 'wrap' }}>
                       <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{authorName}</span>
                       {isClient && (
                         <span style={{ fontSize: '10px', padding: '1px 6px', borderRadius: '8px', background: 'var(--brand-50)', color: 'var(--brand-800)', fontWeight: 500 }}>Client</span>
+                      )}
+                      {!isClient && (
+                        c.visible_to_client ? (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 6px', borderRadius: '8px', background: 'var(--info-bg)', color: 'var(--info-text)', fontWeight: 500 }}>
+                            <Eye size={9} /> Visible to client
+                          </span>
+                        ) : (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 6px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500 }}>
+                            <Lock size={9} /> Internal
+                          </span>
+                        )
                       )}
                       <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{formatDateTime(c.created_at)}</span>
                       {c.edited_at && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontStyle: 'italic' }}>edited</span>}
@@ -113,10 +125,11 @@ export default function TicketComments({
                       <Composer
                         candidateMentions={candidateMentions}
                         initialValue={c.body}
+                        initialVisibleToClient={c.visible_to_client}
                         submitLabel="Save"
                         onCancel={() => setEditingId(null)}
-                        onSubmit={async (body, ids) => {
-                          const ok = await handleEdit(c.id, body, ids)
+                        onSubmit={async (body, ids, visible) => {
+                          const ok = await handleEdit(c.id, body, ids, visible)
                           if (ok) setEditingId(null)
                           return ok
                         }}
@@ -145,6 +158,7 @@ export default function TicketComments({
 function Composer({
   candidateMentions,
   initialValue = '',
+  initialVisibleToClient = false,
   submitLabel,
   resetAfterSubmit,
   onCancel,
@@ -152,12 +166,14 @@ function Composer({
 }: {
   candidateMentions: TeamMember[]
   initialValue?: string
+  initialVisibleToClient?: boolean
   submitLabel: string
   resetAfterSubmit?: boolean
   onCancel?: () => void
-  onSubmit: (body: string, mentionedIds: string[]) => Promise<boolean>
+  onSubmit: (body: string, mentionedIds: string[], visibleToClient: boolean) => Promise<boolean>
 }) {
   const [text, setText] = useState(initialValue)
+  const [visibleToClient, setVisibleToClient] = useState(initialVisibleToClient)
   const [trigger, setTrigger] = useState<{ query: string; start: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -190,13 +206,48 @@ function Composer({
     const trimmed = text.trim()
     if (!trimmed || busy) return
     setBusy(true)
-    const ok = await onSubmit(trimmed, mentionedIdsInText())
+    const ok = await onSubmit(trimmed, mentionedIdsInText(), visibleToClient)
     setBusy(false)
-    if (ok && resetAfterSubmit) setText('')
+    if (ok && resetAfterSubmit) { setText(''); setVisibleToClient(false) }
   }
 
   return (
     <div style={{ position: 'relative' }}>
+      {/* Explicit internal-note vs reply-to-client toggle — internal by
+          default, so a comment never reaches the client unless someone
+          deliberately says so. */}
+      <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-tertiary)', borderRadius: '7px', padding: '3px', marginBottom: '8px', width: 'fit-content' }}>
+        <button
+          type="button"
+          onClick={() => setVisibleToClient(false)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+            fontSize: '11px', fontWeight: 500,
+            background: !visibleToClient ? 'var(--bg-primary)' : 'transparent',
+            color: !visibleToClient ? 'var(--text-primary)' : 'var(--text-tertiary)',
+          }}
+        >
+          <Lock size={11} /> Internal note
+        </button>
+        <button
+          type="button"
+          onClick={() => setVisibleToClient(true)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+            fontSize: '11px', fontWeight: 500,
+            background: visibleToClient ? 'var(--info-bg)' : 'transparent',
+            color: visibleToClient ? 'var(--info-text)' : 'var(--text-tertiary)',
+          }}
+        >
+          <Eye size={11} /> Reply to client
+        </button>
+      </div>
+      {visibleToClient && (
+        <p style={{ fontSize: '11px', color: 'var(--info-text)', margin: '0 0 8px', lineHeight: 1.4 }}>
+          The client will see this comment on their portal and get emailed about it.
+        </p>
+      )}
+
       <textarea
         ref={taRef}
         value={text}
@@ -228,7 +279,7 @@ function Composer({
             <X size={11} /> Cancel
           </button>
         )}
-        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: '#EA580C', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1 }}>
+        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: 'var(--brand-600)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1 }}>
           {submitLabel === 'Save' ? <Check size={12} /> : <Send size={12} />}
           {busy ? 'Saving…' : submitLabel}
         </button>

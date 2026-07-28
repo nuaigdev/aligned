@@ -93,6 +93,7 @@ export async function postPortalComment(input: {
   ticket_id: string
   body: string
   contact_name: string
+  mentioned_team_member_ids?: string[]
 }): Promise<{ id: string } | { error: string }> {
   const session = await requireClientSession()
   if (!input.body.trim()) return { error: 'Comment cannot be empty.' }
@@ -110,23 +111,31 @@ export async function postPortalComment(input: {
     return { error: 'That ticket is not part of your account.' }
   }
 
+  const mentionedIds = input.mentioned_team_member_ids ?? []
+
   const { data: comment, error } = await supabase
     .from('ticket_comments')
     .insert({
       ticket_id: input.ticket_id,
       body: input.body.trim(),
       created_by_client_name: input.contact_name.trim(),
+      mentioned_team_member_ids: mentionedIds,
     })
-    .select('id')
+    .select('id, mentioned_team_member_ids')
     .single()
 
   if (error || !comment) return { error: error?.message || 'Could not post the comment.' }
+
+  // filter_ticket_comment_mentions (migration 009) may have stripped ids that
+  // aren't on this client's team — notify only what actually stuck.
+  const confirmedMentions: string[] = comment.mentioned_team_member_ids ?? []
+  const mentionedSet = new Set(confirmedMentions)
 
   const recipients = [
     ticket.created_by_team_member_id,
     (ticket.clients as any)?.manager_id,
     ...((ticket.ticket_assignees as any[]) ?? []).map(a => a.team_member_id),
-  ].filter(Boolean) as string[]
+  ].filter((id): id is string => Boolean(id) && !mentionedSet.has(id))
 
   await createTicketNotifications(
     supabase, recipients, null, 'ticket_commented',
@@ -135,8 +144,99 @@ export async function postPortalComment(input: {
     input.ticket_id
   )
 
+  if (confirmedMentions.length > 0) {
+    await createTicketNotifications(
+      supabase, confirmedMentions, null, 'ticket_mentioned',
+      'You were mentioned',
+      `${input.contact_name.trim()} mentioned you on "${ticket.title}"`,
+      input.ticket_id
+    )
+  }
+
   revalidatePath(`/portal/tickets/${input.ticket_id}`)
   revalidatePath('/dashboard/tickets')
   revalidatePath(`/dashboard/tickets/${input.ticket_id}`)
   return { id: comment.id }
+}
+
+async function assertOwnPortalComment(supabase: ReturnType<typeof createServiceRoleClient>, commentId: string, clientId: string) {
+  const { data: comment } = await supabase
+    .from('ticket_comments')
+    .select('ticket_id, created_by_client_name, tickets!inner(client_id)')
+    .eq('id', commentId)
+    .maybeSingle()
+
+  if (!comment || !comment.created_by_client_name || (comment.tickets as any)?.client_id !== clientId) {
+    return null
+  }
+  return comment
+}
+
+export async function editPortalComment(
+  commentId: string,
+  body: string
+): Promise<{ ok: true } | { error: string }> {
+  const session = await requireClientSession()
+  if (!body.trim()) return { error: 'Comment cannot be empty.' }
+
+  const supabase = createServiceRoleClient()
+  const comment = await assertOwnPortalComment(supabase, commentId, session.clientId)
+  if (!comment) return { error: 'That comment is not part of your account.' }
+
+  const { error } = await supabase.from('ticket_comments').update({ body: body.trim() }).eq('id', commentId)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/portal/tickets/${comment.ticket_id}`)
+  revalidatePath(`/dashboard/tickets/${comment.ticket_id}`)
+  return { ok: true }
+}
+
+export async function deletePortalComment(commentId: string): Promise<{ ok: true } | { error: string }> {
+  const session = await requireClientSession()
+  const supabase = createServiceRoleClient()
+  const comment = await assertOwnPortalComment(supabase, commentId, session.clientId)
+  if (!comment) return { error: 'That comment is not part of your account.' }
+
+  const { error } = await supabase.from('ticket_comments').delete().eq('id', commentId)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/portal/tickets/${comment.ticket_id}`)
+  revalidatePath(`/dashboard/tickets/${comment.ticket_id}`)
+  return { ok: true }
+}
+
+export async function uploadPortalAttachment(formData: FormData): Promise<{ ok: true } | { error: string }> {
+  const session = await requireClientSession()
+  const ticketId = String(formData.get('ticket_id') || '')
+  const file = formData.get('file') as File | null
+
+  if (!ticketId || !file) return { error: 'Missing file.' }
+
+  const supabase = createServiceRoleClient()
+  const { data: ticket } = await supabase.from('tickets').select('client_id, project_id').eq('id', ticketId).maybeSingle()
+  if (!ticket || ticket.client_id !== session.clientId) return { error: 'That ticket is not part of your account.' }
+
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const storagePath = `tickets/${ticketId}/${Date.now()}_${safeName}`
+
+  const { error: storageErr } = await supabase.storage
+    .from('project-documents')
+    .upload(storagePath, file, { cacheControl: '3600', upsert: false })
+  if (storageErr) return { error: storageErr.message }
+
+  const { error } = await supabase.from('documents').insert({
+    project_id: ticket.project_id,
+    ticket_id: ticketId,
+    name: file.name,
+    storage_path: storagePath,
+    file_type: ext || null,
+    file_size_bytes: file.size,
+    shared_by: 'client',
+  })
+  if (error) return { error: error.message }
+
+  revalidatePath(`/portal/tickets/${ticketId}`)
+  revalidatePath(`/dashboard/tickets/${ticketId}`)
+  return { ok: true }
 }

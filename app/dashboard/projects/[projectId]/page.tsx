@@ -4,6 +4,8 @@ import { formatDate, formatDecisionRef, formatRelative } from '@/lib/utils'
 import Link from 'next/link'
 import { ExternalLink } from 'lucide-react'
 import CopyButton from './CopyButton'
+import DeleteConfirmButton from '@/components/dashboard/DeleteConfirmButton'
+import { deleteProject } from '@/lib/projects/actions'
 
 export const dynamic = 'force-dynamic'
 
@@ -265,6 +267,29 @@ export default async function ProjectPage({ params }: { params: { projectId: str
           </div>
         </div>
       )}
+
+      {/* Danger zone */}
+      <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '0.5px solid var(--border-default)' }}>
+        <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+          Danger zone
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px' }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>Delete this project</div>
+            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+              Tickets linked to this project stay under {client?.name ?? 'the client'}, just without a project link.
+            </div>
+          </div>
+          <DeleteConfirmButton
+            entityLabel="project"
+            confirmText={project.name}
+            cascadeWarning={`This permanently deletes ${total} milestone(s), ${decisions?.length ?? 0} decision(s), and ${documents?.length ?? 0} document(s) for ${project.name}.`}
+            action={deleteProject}
+            entityId={project.id}
+            redirectTo="/dashboard/projects"
+          />
+        </div>
+      </div>
     </div>
   )
 }

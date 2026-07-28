@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { formatTicketRef } from '@/lib/utils'
 import TicketDetail from './TicketDetail'
 import TicketComments from './TicketComments'
+import TicketAttachments from './TicketAttachments'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,10 +19,11 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
 
   if (!ticket) notFound()
 
-  const [{ data: assignees }, { data: rawComments }, { data: teamMembers }] = await Promise.all([
+  const [{ data: assignees }, { data: rawComments }, { data: teamMembers }, { data: documents }] = await Promise.all([
     supabase.from('ticket_assignees').select('team_member_id').eq('ticket_id', ticket.id),
     supabase.from('ticket_comments').select('*').eq('ticket_id', ticket.id).order('created_at'),
     supabase.from('team_members').select('*').eq('is_active', true).order('name'),
+    supabase.from('documents').select('*').eq('ticket_id', ticket.id).order('created_at', { ascending: false }),
   ])
 
   const client = ticket.clients as any
@@ -57,6 +59,11 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
           ticket={ticket}
           candidatePool={candidatePool}
           initialAssigneeIds={(assignees ?? []).map(a => a.team_member_id)}
+        />
+        <TicketAttachments
+          ticketId={ticket.id}
+          projectId={ticket.project_id}
+          initialDocuments={documents ?? []}
         />
         <TicketComments
           ticketId={ticket.id}

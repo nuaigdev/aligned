@@ -171,7 +171,7 @@ export interface ApprovalLink {
 
 export interface Document {
   id: string
-  project_id: string
+  project_id: string | null
   milestone_id: string | null
   decision_id: string | null
   ticket_id: string | null
@@ -253,6 +253,7 @@ export interface TicketComment {
   mentioned_team_member_ids: string[]
   created_by_team_member_id: string | null
   created_by_client_name: string | null
+  visible_to_client: boolean
   created_at: string
   updated_at: string
   // Joined
