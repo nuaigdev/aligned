@@ -30,6 +30,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# one-off admin/setup scripts — may contain real credentials, never committed
+/scripts
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { getSessionClient } from '@/lib/portal/session-guard'
 import PortalNav from './PortalNav'
 import PortalLogoutButton from './LogoutButton'
@@ -5,6 +6,13 @@ import { Logo } from '@/components/Logo'
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const client = await getSessionClient()
+
+  // A client with a temporary/reset password must set a real one before
+  // touching anything else — enforced here so it applies to every page in
+  // this group, not just the ones that remember to check.
+  if (client.must_change_password) {
+    redirect('/portal/change-password')
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-tertiary)' }}>
