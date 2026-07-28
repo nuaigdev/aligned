@@ -22,7 +22,7 @@ export type MilestoneStatus =
   | 'completed'
   | 'reopened'
 
-export type DecisionStatus = 'draft' | 'pending_approval' | 'approved' | 'amended'
+export type DecisionStatus = 'draft' | 'pending_approval' | 'approved' | 'amended' | 'declined' | 'on_hold'
 
 export type ApprovalTargetType = 'decision' | 'milestone'
 
@@ -132,6 +132,7 @@ export interface Milestone {
   delay_owner: 'client' | 'team' | null
   delay_reason: string | null
   sort_order: number
+  percentage: number
   created_at: string
   updated_at: string
 }
@@ -148,6 +149,10 @@ export interface Decision {
   signed_by_name: string | null
   signed_by_email: string | null
   parent_id: string | null
+  milestone_id: string | null
+  client_decision_comment: string | null
+  client_decided_by_name: string | null
+  decided_at: string | null
   created_at: string
   updated_at: string
 }

@@ -16,7 +16,7 @@ export async function hasNewPortalActivity(clientId: string, lastSeenAt: string 
   const supabase = createServiceRoleClient()
   const since = lastSeenAt ?? '1970-01-01T00:00:00Z'
 
-  const [{ count: commentCount }, { count: ticketCount }] = await Promise.all([
+  const [{ count: commentCount }, { count: ticketCount }, { count: decisionCount }, { count: milestoneCount }] = await Promise.all([
     supabase
       .from('ticket_comments')
       .select('id, tickets!inner(client_id)', { count: 'exact', head: true })
@@ -29,9 +29,23 @@ export async function hasNewPortalActivity(clientId: string, lastSeenAt: string 
       .select('id', { count: 'exact', head: true })
       .eq('client_id', clientId)
       .gt('updated_at', since),
+    // A decision sent for approval/reopened for review — decisions have no
+    // email step anymore (migration 030), so this blip is the notification.
+    supabase
+      .from('decisions')
+      .select('id, projects!inner(client_id)', { count: 'exact', head: true })
+      .eq('projects.client_id', clientId)
+      .eq('status', 'pending_approval')
+      .gt('updated_at', since),
+    supabase
+      .from('milestones')
+      .select('id, projects!inner(client_id)', { count: 'exact', head: true })
+      .eq('projects.client_id', clientId)
+      .eq('status', 'awaiting_signoff')
+      .gt('updated_at', since),
   ])
 
-  return (commentCount ?? 0) > 0 || (ticketCount ?? 0) > 0
+  return (commentCount ?? 0) > 0 || (ticketCount ?? 0) > 0 || (decisionCount ?? 0) > 0 || (milestoneCount ?? 0) > 0
 }
 
 export async function markPortalSeen(): Promise<{ ok: true }> {

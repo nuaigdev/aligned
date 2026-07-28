@@ -1,6 +1,7 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getSessionProject } from '@/lib/portal/session-guard'
-import { formatDate, maskEmail } from '@/lib/utils'
+import { formatDate, formatDecisionRef, formatFileSize, maskEmail } from '@/lib/utils'
+import PortalDecisionActions from '../decisions/PortalDecisionActions'
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
   not_started:      { label: 'Not started',       bg: 'var(--bg-tertiary)',  color: 'var(--text-tertiary)' },
@@ -18,25 +19,37 @@ const DOT_COLOR: Record<string, string> = {
   reopened:         '#993C1D',
 }
 
+const DECISION_STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
+  draft:            { label: 'Draft',            bg: 'var(--bg-tertiary)',  color: 'var(--text-tertiary)' },
+  pending_approval: { label: 'Awaiting your review', bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
+  approved:         { label: 'Approved',         bg: 'var(--success-bg)',   color: 'var(--success-text)' },
+  amended:          { label: 'Amended',          bg: 'var(--info-bg)',      color: 'var(--info-text)' },
+  declined:         { label: 'Declined',         bg: 'var(--danger-bg)',    color: 'var(--danger-text)' },
+  on_hold:          { label: 'On hold',          bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
+}
+
+const FILE_ICON: Record<string, string> = {
+  pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊',
+  ppt: '📑', pptx: '📑', png: '🖼', jpg: '🖼', jpeg: '🖼', gif: '🖼', webp: '🖼', zip: '📦', csv: '📊',
+}
+
 export const dynamic = 'force-dynamic'
 
 export default async function PortalMilestonesPage({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()
 
-  const [{ data: milestones }, { data: pendingApprovals }] = await Promise.all([
-    supabase
-      .from('milestones')
-      .select('*')
-      .eq('project_id', project.id)
-      .order('sort_order')
-      .order('created_at'),
+  const [{ data: milestones }, { data: pendingApprovals }, { data: decisions }, { data: documents }, { data: contacts }] = await Promise.all([
+    supabase.from('milestones').select('*').eq('project_id', project.id).order('sort_order').order('created_at'),
     supabase
       .from('approval_links')
       .select('id, target_id, recipient_email, recipient_name')
       .eq('project_id', project.id)
       .eq('target_type', 'milestone')
       .eq('status', 'pending'),
+    supabase.from('decisions').select('*').eq('project_id', project.id).order('ref_number', { ascending: false }),
+    supabase.from('documents').select('*').eq('project_id', project.id).order('created_at', { ascending: false }),
+    supabase.from('client_contacts').select('id, name').eq('client_id', project.client_id).eq('is_active', true).is('project_id', null).order('name'),
   ])
 
   const milestoneIds = (milestones ?? []).map(m => m.id)
@@ -47,138 +60,232 @@ export default async function PortalMilestonesPage({ params }: { params: { proje
         .in('milestone_id', milestoneIds)
     : { data: [] }
 
-  const phaseOrder: string[] = []
-  const phaseMap: Record<string, typeof milestones> = {}
+  const docsWithUrls = await Promise.all(
+    (documents ?? []).map(async doc => {
+      let signedUrl: string | null = null
+      try {
+        const { data } = await supabase.storage.from('project-documents').createSignedUrl(doc.storage_path, 3600)
+        signedUrl = data?.signedUrl ?? null
+      } catch {
+        // Storage may not be configured; gracefully degrade
+      }
+      return { ...doc, signedUrl }
+    })
+  )
 
-  for (const m of milestones ?? []) {
-    const phase = m.phase || '__none__'
-    if (!phaseMap[phase]) {
-      phaseMap[phase] = []
-      phaseOrder.push(phase)
+  const decisionsByMilestone = new Map<string, typeof decisions>()
+  const unassignedDecisions: typeof decisions = []
+  for (const d of decisions ?? []) {
+    if (d.milestone_id) {
+      if (!decisionsByMilestone.has(d.milestone_id)) decisionsByMilestone.set(d.milestone_id, [])
+      decisionsByMilestone.get(d.milestone_id)!.push(d)
+    } else {
+      unassignedDecisions.push(d)
     }
-    phaseMap[phase]!.push(m)
+  }
+
+  const documentsByMilestone = new Map<string, typeof docsWithUrls>()
+  const unassignedDocuments: typeof docsWithUrls = []
+  for (const doc of docsWithUrls) {
+    if (doc.milestone_id) {
+      if (!documentsByMilestone.has(doc.milestone_id)) documentsByMilestone.set(doc.milestone_id, [])
+      documentsByMilestone.get(doc.milestone_id)!.push(doc)
+    } else {
+      unassignedDocuments.push(doc)
+    }
+  }
+
+  function renderDecisionCard(dec: NonNullable<typeof decisions>[number]) {
+    const cfg = DECISION_STATUS_CONFIG[dec.status] ?? DECISION_STATUS_CONFIG.draft
+    const canAct = dec.status === 'pending_approval' || dec.status === 'on_hold'
+    return (
+      <div key={dec.id} style={{ background: 'var(--bg-tertiary)', border: canAct ? '0.5px solid #D6B97B' : '0.5px solid var(--border-default)', borderRadius: '8px', padding: '10px 12px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: 'monospace', flexShrink: 0 }}>{formatDecisionRef(dec.ref_number)}</span>
+            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{dec.title}</span>
+          </div>
+          <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: cfg.bg, color: cfg.color, fontWeight: 500, flexShrink: 0 }}>{cfg.label}</span>
+        </div>
+        {dec.description && <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '5px 0 0', lineHeight: 1.5 }}>{dec.description}</p>}
+        {dec.status === 'approved' && dec.signed_by_name && (
+          <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--success-text)' }}>✓ Approved by {dec.signed_by_name} · {formatDate(dec.signed_at)}</div>
+        )}
+        {dec.status === 'declined' && dec.client_decided_by_name && (
+          <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--danger-text)' }}>✕ Declined by {dec.client_decided_by_name} · {formatDate(dec.decided_at)}</div>
+        )}
+        {canAct && (
+          <div style={{ marginTop: '8px' }}>
+            <PortalDecisionActions decisionId={dec.id} contacts={contacts ?? []} canResolveFromHold={dec.status === 'on_hold'} />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  function renderDocumentRow(doc: (typeof docsWithUrls)[number]) {
+    return (
+      <a
+        key={doc.id}
+        href={doc.signedUrl ?? undefined}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--bg-tertiary)', borderRadius: '8px', textDecoration: 'none' }}
+      >
+        <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
+        <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
+        <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', flexShrink: 0 }}>
+          {doc.file_size_bytes ? `${formatFileSize(doc.file_size_bytes)} · ` : ''}{formatDate(doc.created_at)}
+        </span>
+      </a>
+    )
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', margin: 0 }}>
-        Full project timeline · {(milestones ?? []).length} milestones
+        Every stage of this project, and the decisions and files tied to it · {(milestones ?? []).length} stages
       </p>
 
-      {phaseOrder.map(phase => {
-        const phaseMilestones = phaseMap[phase] ?? []
-        const showHeader = phase !== '__none__'
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        {(milestones ?? []).map((ms, i) => {
+          const isLast = i === (milestones ?? []).length - 1
+          const isInternal = ms.type === 'internal'
+          const isAwaiting = ms.status === 'awaiting_signoff'
+          const isCompleted = ms.status === 'completed'
 
-        return (
-          <div key={phase}>
-            {showHeader && (
-              <div style={{
-                fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)',
-                textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '10px',
-              }}>
-                {phase}
+          const pendingLink = pendingApprovals?.find(a => a.target_id === ms.id)
+          const signoff = milestoneSignoffs?.find(s => s.milestone_id === ms.id)
+          const statusCfg = STATUS_CONFIG[ms.status] ?? STATUS_CONFIG.not_started
+          const dotColor = DOT_COLOR[ms.status] ?? '#B4B2A9'
+          const titleDisplay = ms.iteration > 1 ? `${ms.title} · Cycle ${ms.iteration}` : ms.title
+
+          const stageDecisions = decisionsByMilestone.get(ms.id) ?? []
+          const stageDocuments = documentsByMilestone.get(ms.id) ?? []
+
+          return (
+            <div key={ms.id} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '6px', flexShrink: 0, width: '16px' }}>
+                <div style={{
+                  width: '12px', height: '12px', borderRadius: '50%', background: dotColor, flexShrink: 0,
+                  border: ms.status === 'awaiting_signoff' ? '2px solid #EA580C' : 'none', boxSizing: 'border-box',
+                }} />
+                {!isLast && <div style={{ width: '1px', flex: 1, minHeight: '20px', background: 'var(--border-default)', marginTop: '3px' }} />}
               </div>
-            )}
 
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {phaseMilestones.map((ms, i) => {
-                const isLast = i === phaseMilestones.length - 1
-                const isInternal = ms.type === 'internal'
-                const isAwaiting = ms.status === 'awaiting_signoff'
-                const isCompleted = ms.status === 'completed'
+              <div style={{ flex: 1, background: 'var(--bg-primary)', border: isAwaiting ? '0.5px solid #FED7AA' : '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px', marginBottom: isLast ? '0' : '4px' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '6px' }}>
+                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4 }}>
+                    {isInternal ? ms.title : titleDisplay}
+                  </div>
+                  <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
+                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'var(--brand-50)', color: 'var(--brand-800)', fontWeight: 500 }}>{ms.percentage}%</span>
+                    {isInternal && (
+                      <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500 }}>Internal</span>
+                    )}
+                    {ms.type === 'client_gate' && (
+                      <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'var(--brand-50)', color: 'var(--brand-800)', fontWeight: 500 }}>Your sign-off</span>
+                    )}
+                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: statusCfg.bg, color: statusCfg.color, fontWeight: 500 }}>
+                      {statusCfg.label}
+                    </span>
+                  </div>
+                </div>
 
-                const pendingLink = pendingApprovals?.find(a => a.target_id === ms.id)
-                const signoff = milestoneSignoffs?.find(s => s.milestone_id === ms.id)
-                const statusCfg = STATUS_CONFIG[ms.status] ?? STATUS_CONFIG.not_started
-                const dotColor = DOT_COLOR[ms.status] ?? '#B4B2A9'
-
-                const titleDisplay = ms.iteration > 1 ? `${ms.title} · Cycle ${ms.iteration}` : ms.title
-
-                return (
-                  <div key={ms.id} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: '6px', flexShrink: 0, width: '16px' }}>
-                      <div style={{
-                        width: '12px', height: '12px', borderRadius: '50%', background: dotColor, flexShrink: 0,
-                        border: ms.status === 'awaiting_signoff' ? '2px solid #EA580C' : 'none', boxSizing: 'border-box',
-                      }} />
-                      {!isLast && <div style={{ width: '1px', flex: 1, minHeight: '24px', background: 'var(--border-default)', marginTop: '3px' }} />}
+                {!isInternal && (
+                  <>
+                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: ms.description ? '5px' : '0' }}>
+                      {ms.completed_at ? `Completed ${formatDate(ms.completed_at)}` : ms.due_date ? `Due ${formatDate(ms.due_date)}` : null}
                     </div>
 
-                    <div style={{
-                      flex: 1, background: 'var(--bg-primary)',
-                      border: isAwaiting ? '0.5px solid #FED7AA' : '0.5px solid var(--border-default)',
-                      borderRadius: '10px', padding: '12px 14px', marginBottom: isLast ? '0' : '6px',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '10px', marginBottom: '6px' }}>
-                        <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4 }}>
-                          {isInternal ? ms.title : titleDisplay}
+                    {ms.description && (
+                      <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.5 }}>{ms.description}</p>
+                    )}
+
+                    {isAwaiting && (
+                      <div style={{ marginTop: '8px', padding: '7px 10px', background: 'var(--warning-bg)', borderRadius: '7px', fontSize: '12px', color: 'var(--warning-text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>✉</span>
+                        <span>
+                          Awaiting signature · check your email
+                          {pendingLink && <span> · Sent to {maskEmail(pendingLink.recipient_email)}</span>}
+                        </span>
+                      </div>
+                    )}
+
+                    {isCompleted && signoff && (
+                      <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--success-text)' }}>
+                        <span>✓</span>
+                        <span>Signed by {signoff.signed_by_name} · {formatDate(signoff.signed_at)}</span>
+                      </div>
+                    )}
+
+                    {ms.delay_owner && (
+                      <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
+                        {ms.delay_owner === 'client' ? '⚠ Delay · Client side' : '⚠ Delay · Team side'}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {(stageDecisions.length > 0 || stageDocuments.length > 0) && (
+                  <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '0.5px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {stageDecisions.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                          Decisions
                         </div>
-                        <div style={{ display: 'flex', gap: '5px', alignItems: 'center', flexShrink: 0 }}>
-                          {isInternal && (
-                            <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500 }}>Internal</span>
-                          )}
-                          {ms.type === 'client_gate' && (
-                            <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'var(--brand-50)', color: 'var(--brand-800)', fontWeight: 500 }}>Your sign-off</span>
-                          )}
-                          {ms.type === 'informational' && (
-                            <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'var(--info-bg)', color: 'var(--info-text)', fontWeight: 500 }}>Informational</span>
-                          )}
-                          <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: statusCfg.bg, color: statusCfg.color, fontWeight: 500 }}>
-                            {statusCfg.label}
-                          </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {stageDecisions.map(renderDecisionCard)}
                         </div>
                       </div>
-
-                      {!isInternal && (
-                        <>
-                          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: ms.description ? '5px' : '0' }}>
-                            {ms.completed_at ? `Completed ${formatDate(ms.completed_at)}` : ms.due_date ? `Due ${formatDate(ms.due_date)}` : null}
-                            {ms.phase && !showHeader && ` · ${ms.phase}`}
-                          </div>
-
-                          {ms.description && (
-                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.5 }}>{ms.description}</p>
-                          )}
-
-                          {isAwaiting && (
-                            <div style={{
-                              marginTop: '8px', padding: '7px 10px', background: 'var(--warning-bg)', borderRadius: '7px',
-                              fontSize: '12px', color: 'var(--warning-text)', display: 'flex', alignItems: 'center', gap: '6px',
-                            }}>
-                              <span>✉</span>
-                              <span>
-                                Awaiting signature · check your email
-                                {pendingLink && <span> · Sent to {maskEmail(pendingLink.recipient_email)}</span>}
-                              </span>
-                            </div>
-                          )}
-
-                          {isCompleted && signoff && (
-                            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--success-text)' }}>
-                              <span>✓</span>
-                              <span>Signed by {signoff.signed_by_name} · {formatDate(signoff.signed_at)}</span>
-                            </div>
-                          )}
-
-                          {ms.delay_owner && (
-                            <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--text-tertiary)' }}>
-                              {ms.delay_owner === 'client' ? '⚠ Delay · Client side' : '⚠ Delay · Team side'}
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    )}
+                    {stageDocuments.length > 0 && (
+                      <div>
+                        <div style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                          Documents
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                          {stageDocuments.map(renderDocumentRow)}
+                        </div>
+                      </div>
+                    )}
                   </div>
-                )
-              })}
+                )}
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
 
       {(milestones ?? []).length === 0 && (
         <div style={{ padding: '48px 32px', textAlign: 'center', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', fontSize: '14px', color: 'var(--text-tertiary)' }}>
-          No milestones have been added yet
+          No stages have been added yet
+        </div>
+      )}
+
+      {(unassignedDecisions.length > 0 || unassignedDocuments.length > 0) && (
+        <div>
+          <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '10px' }}>
+            Not tied to a stage
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {unassignedDecisions.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Decisions</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {unassignedDecisions.map(renderDecisionCard)}
+                </div>
+              </div>
+            )}
+            {unassignedDocuments.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Documents</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  {unassignedDocuments.map(renderDocumentRow)}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

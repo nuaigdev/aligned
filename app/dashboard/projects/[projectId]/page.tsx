@@ -69,7 +69,10 @@ export default async function ProjectPage({ params }: { params: { projectId: str
 
   const completed = milestones?.filter(m => m.status === 'completed').length ?? 0
   const total = milestones?.length ?? 0
-  const progress = total > 0 ? Math.round((completed / total) * 100) : 0
+  // Progress is weighted by each milestone's assigned percentage of the
+  // project, not a flat completed/total count — a milestone worth 40% moves
+  // the bar more than one worth 5%.
+  const progress = Math.min(100, (milestones ?? []).filter(m => m.status === 'completed').reduce((sum, m) => sum + (m.percentage ?? 0), 0))
   const client = project.clients as any
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const portalDeepLink = `${appUrl}/portal/projects/${project.id}`

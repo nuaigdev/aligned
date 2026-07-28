@@ -10,10 +10,11 @@ export default async function DocumentsPage({ params }: { params: { projectId: s
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: project }, { data: documents }, { data: me }] = await Promise.all([
+  const [{ data: project }, { data: documents }, { data: me }, { data: milestones }] = await Promise.all([
     supabase.from('projects').select('id, name, clients(name)').eq('id', params.projectId).single(),
     supabase.from('documents').select('*').eq('project_id', params.projectId).order('created_at', { ascending: false }),
     user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from('milestones').select('id, title').eq('project_id', params.projectId).order('sort_order'),
   ])
 
   if (!project) notFound()
@@ -36,7 +37,7 @@ export default async function DocumentsPage({ params }: { params: { projectId: s
         </p>
       </div>
 
-      <DocumentsPanel projectId={params.projectId} initialDocuments={(documents ?? []) as Document[]} canManage={canManage} />
+      <DocumentsPanel projectId={params.projectId} initialDocuments={(documents ?? []) as Document[]} milestones={milestones ?? []} canManage={canManage} />
     </div>
   )
 }

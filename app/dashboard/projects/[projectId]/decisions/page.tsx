@@ -10,21 +10,15 @@ export default async function DecisionsPage({ params }: { params: { projectId: s
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: project }, { data: decisions }, { data: me }] = await Promise.all([
+  const [{ data: project }, { data: decisions }, { data: me }, { data: milestones }] = await Promise.all([
     supabase.from('projects').select('id, name, client_id, clients(name)').eq('id', params.projectId).single(),
     supabase.from('decisions').select('*').eq('project_id', params.projectId).order('ref_number', { ascending: false }),
     user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from('milestones').select('id, title').eq('project_id', params.projectId).order('sort_order'),
   ])
 
   if (!project) notFound()
   const canManage = me?.role === 'admin' || me?.role === 'manager'
-
-  const { data: contacts } = await supabase
-    .from('client_contacts')
-    .select('id, name, email')
-    .eq('client_id', (project as any).client_id)
-    .eq('is_active', true)
-    .order('name')
 
   return (
     <div>
@@ -46,7 +40,7 @@ export default async function DecisionsPage({ params }: { params: { projectId: s
       <DecisionsPanel
         projectId={params.projectId}
         initialDecisions={(decisions ?? []) as Decision[]}
-        contacts={(contacts ?? []) as Array<{ id: string; name: string; email: string }>}
+        milestones={milestones ?? []}
         canManage={canManage}
       />
     </div>

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import toast from 'react-hot-toast'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { formatDate, formatDecisionRef } from '@/lib/utils'
 import type { Decision, DecisionStatus } from '@/types'
@@ -11,6 +12,8 @@ const STATUS_CONFIG: Record<DecisionStatus, { label: string; bg: string; color: 
   pending_approval: { label: 'Pending approval', bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
   approved:         { label: 'Approved',         bg: 'var(--success-bg)',   color: 'var(--success-text)' },
   amended:          { label: 'Amended',          bg: 'var(--info-bg)',      color: 'var(--info-text)' },
+  declined:         { label: 'Declined',         bg: 'var(--danger-bg)',    color: 'var(--danger-text)' },
+  on_hold:          { label: 'On hold',          bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
 }
 
 const inputStyle: React.CSSProperties = {
@@ -20,19 +23,19 @@ const inputStyle: React.CSSProperties = {
   boxSizing: 'border-box', background: 'var(--bg-primary)',
 }
 
-const emptyForm = { title: '', description: '', meeting_ref: '' }
+const emptyForm = { title: '', description: '', meeting_ref: '', milestone_id: '' }
 
-interface Contact { id: string; name: string; email: string }
+interface MilestoneOption { id: string; title: string }
 
 export default function DecisionsPanel({
   projectId,
   initialDecisions,
-  contacts,
+  milestones,
   canManage,
 }: {
   projectId: string
   initialDecisions: Decision[]
-  contacts: Contact[]
+  milestones: MilestoneOption[]
   canManage: boolean
 }) {
   const router = useRouter()
@@ -42,15 +45,12 @@ export default function DecisionsPanel({
   const [form, setForm] = useState(emptyForm)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
 
-  const [sendModal, setSendModal] = useState<{ decision: Decision } | null>(null)
-  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set())
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
-
   const [amendModal, setAmendModal] = useState<{ decision: Decision } | null>(null)
-  const [amendForm, setAmendForm] = useState({ title: '', description: '', meeting_ref: '' })
+  const [amendForm, setAmendForm] = useState({ title: '', description: '', meeting_ref: '', milestone_id: '' })
   const [amendSaving, setAmendSaving] = useState(false)
   const [amendError, setAmendError] = useState<string | null>(null)
+
+  const milestoneTitleById = new Map(milestones.map(m => [m.id, m.title]))
 
   function set(field: string, value: string) {
     setForm(f => ({ ...f, [field]: value }))
@@ -69,6 +69,7 @@ export default function DecisionsPanel({
       title: form.title.trim(),
       description: form.description.trim() || null,
       meeting_ref: form.meeting_ref.trim() || null,
+      milestone_id: form.milestone_id || null,
       status: 'draft',
     })
 
@@ -78,68 +79,17 @@ export default function DecisionsPanel({
     router.refresh()
   }
 
-  async function handleStatusChange(id: string, newStatus: DecisionStatus) {
+  // No recipient picker, no email — the client sees this pending on
+  // their portal the moment it's sent (see migration 030's write-up).
+  async function handleSendForApproval(id: string) {
     setUpdatingId(id)
-    await supabase.from('decisions').update({ status: newStatus }).eq('id', id)
+    const { error } = await supabase.from('decisions').update({ status: 'pending_approval' }).eq('id', id)
     setUpdatingId(null)
-    router.refresh()
-  }
-
-  function openSendModal(decision: Decision) {
-    setSelectedContacts(new Set())
-    setSendError(null)
-    setSendModal({ decision })
-  }
-
-  function closeSendModal() {
-    setSendModal(null)
-    setSendError(null)
-    setSelectedContacts(new Set())
-  }
-
-  function toggleContact(id: string) {
-    setSelectedContacts(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  async function handleSend() {
-    if (!sendModal || selectedContacts.size === 0) return
-    setSending(true)
-    setSendError(null)
-
-    const recipients = contacts
-      .filter(c => selectedContacts.has(c.id))
-      .map(c => ({ name: c.name, email: c.email }))
-
-    try {
-      const res = await fetch('/api/approvals/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_id: projectId,
-          target_type: 'decision',
-          target_id: sendModal.decision.id,
-          recipients,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setSendError(json.error || 'Failed to send')
-        setSending(false)
-        return
-      }
-    } catch {
-      setSendError('Network error — please try again')
-      setSending(false)
+    if (error) {
+      toast.error(error.message)
       return
     }
-
-    setSending(false)
-    closeSendModal()
+    toast.success('Sent to the client for approval')
     router.refresh()
   }
 
@@ -148,6 +98,7 @@ export default function DecisionsPanel({
       title: `Amendment: ${decision.title}`,
       description: '',
       meeting_ref: '',
+      milestone_id: decision.milestone_id ?? '',
     })
     setAmendError(null)
     setAmendModal({ decision })
@@ -156,7 +107,7 @@ export default function DecisionsPanel({
   function closeAmendModal() {
     setAmendModal(null)
     setAmendError(null)
-    setAmendForm({ title: '', description: '', meeting_ref: '' })
+    setAmendForm({ title: '', description: '', meeting_ref: '', milestone_id: '' })
   }
 
   async function handleAmendSubmit(e: React.FormEvent) {
@@ -174,6 +125,7 @@ export default function DecisionsPanel({
         title: amendForm.title.trim(),
         description: amendForm.description.trim() || null,
         meeting_ref: amendForm.meeting_ref.trim() || null,
+        milestone_id: amendForm.milestone_id || null,
         status: 'draft',
         parent_id: amendModal.decision.id,
       })
@@ -234,6 +186,14 @@ export default function DecisionsPanel({
               </div>
             </div>
 
+            <div>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Stage (optional)</label>
+              <select value={form.milestone_id} onChange={e => set('milestone_id', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="">Not tied to a stage</option>
+                {milestones.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+              </select>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
               <button type="button" onClick={() => setShowForm(false)} style={{ padding: '7px 14px', border: '0.5px solid var(--border-medium)', borderRadius: '7px', fontSize: '13px', color: 'var(--text-secondary)', background: 'var(--bg-primary)', cursor: 'pointer' }}>Cancel</button>
               <button type="submit" disabled={saving || !form.title.trim()} style={{ padding: '7px 16px', background: saving || !form.title.trim() ? '#FED7AA' : '#EA580C', color: '#fff', border: 'none', borderRadius: '7px', fontSize: '13px', fontWeight: 500, cursor: saving || !form.title.trim() ? 'not-allowed' : 'pointer' }}>
@@ -249,6 +209,7 @@ export default function DecisionsPanel({
         {initialDecisions.map(d => {
           const status = STATUS_CONFIG[d.status] ?? STATUS_CONFIG.draft
           const isUpdating = updatingId === d.id
+          const stageName = d.milestone_id ? milestoneTitleById.get(d.milestone_id) : null
 
           return (
             <div key={d.id} style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px' }}>
@@ -260,6 +221,9 @@ export default function DecisionsPanel({
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>{d.title}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    {stageName && (
+                      <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 500 }}>{stageName}</span>
+                    )}
                     {d.meeting_ref && <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{d.meeting_ref}</span>}
                     {d.signed_by_name && (
                       <span style={{ fontSize: '11px', color: 'var(--success-text)' }}>
@@ -268,6 +232,12 @@ export default function DecisionsPanel({
                     )}
                   </div>
                   {d.description && <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '6px 0 0', lineHeight: 1.5 }}>{d.description}</p>}
+                  {(d.status === 'declined' || d.status === 'on_hold') && d.client_decided_by_name && (
+                    <div style={{ marginTop: '8px', padding: '7px 10px', background: 'var(--bg-tertiary)', borderRadius: '7px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      {d.status === 'declined' ? 'Declined' : 'Put on hold'} by {d.client_decided_by_name}{d.decided_at ? ` · ${formatDate(d.decided_at)}` : ''}
+                      {d.client_decision_comment && <div style={{ marginTop: '3px', fontStyle: 'italic' }}>"{d.client_decision_comment}"</div>}
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
@@ -275,17 +245,17 @@ export default function DecisionsPanel({
                     {status.label}
                   </span>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {canManage && d.status === 'draft' && (
+                    {canManage && (d.status === 'draft' || d.status === 'on_hold') && (
                       <button
                         disabled={isUpdating}
-                        onClick={() => openSendModal(d)}
+                        onClick={() => handleSendForApproval(d.id)}
                         style={{
                           fontSize: '11px', padding: '3px 9px', borderRadius: '6px',
                           border: '0.5px solid #EA580C', background: 'var(--bg-primary)',
                           color: '#EA580C', cursor: isUpdating ? 'not-allowed' : 'pointer', fontWeight: 500,
                         }}
                       >
-                        Send for approval
+                        {isUpdating ? 'Sending…' : d.status === 'on_hold' ? 'Resend for approval' : 'Send for approval'}
                       </button>
                     )}
                     {canManage && d.status === 'approved' && (
@@ -319,81 +289,6 @@ export default function DecisionsPanel({
           </div>
         )}
       </div>
-
-      {/* Send for approval modal */}
-      {sendModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
-          onClick={e => { if (e.target === e.currentTarget) closeSendModal() }}
-        >
-          <div style={{ background: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '440px', maxWidth: '90vw' }}>
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>Send for approval</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>{sendModal.decision.title}</div>
-            </div>
-
-            {contacts.length === 0 ? (
-              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '16px' }}>
-                No contacts configured for this client. Add contacts on the client page.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Select recipients</div>
-                {contacts.map(c => (
-                  <label
-                    key={c.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                      padding: '9px 12px', background: selectedContacts.has(c.id) ? 'var(--brand-50)' : 'var(--bg-secondary)',
-                      border: selectedContacts.has(c.id) ? '0.5px solid #FED7AA' : '0.5px solid var(--border-default)',
-                      borderRadius: '8px', cursor: 'pointer',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedContacts.has(c.id)}
-                      onChange={() => toggleContact(c.id)}
-                      style={{ accentColor: '#EA580C', width: '14px', height: '14px', cursor: 'pointer' }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{c.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{c.email}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {sendError && (
-              <div style={{ fontSize: '12px', color: 'var(--danger-text)', background: 'var(--danger-bg)', borderRadius: '6px', padding: '8px 10px', marginBottom: '14px' }}>
-                {sendError}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button
-                onClick={closeSendModal}
-                style={{ padding: '7px 14px', border: '0.5px solid var(--border-medium)', borderRadius: '7px', fontSize: '13px', color: 'var(--text-secondary)', background: 'var(--bg-primary)', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={sending || selectedContacts.size === 0 || contacts.length === 0}
-                style={{
-                  padding: '7px 16px',
-                  background: sending || selectedContacts.size === 0 || contacts.length === 0 ? '#FED7AA' : '#EA580C',
-                  color: '#fff', border: 'none', borderRadius: '7px',
-                  fontSize: '13px', fontWeight: 500,
-                  cursor: sending || selectedContacts.size === 0 || contacts.length === 0 ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {sending ? 'Sending…' : `Send to ${selectedContacts.size > 0 ? selectedContacts.size : ''} ${selectedContacts.size === 1 ? 'recipient' : 'recipients'}`.trim()}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Create amendment modal */}
       {amendModal && (
@@ -440,6 +335,14 @@ export default function DecisionsPanel({
                   placeholder="e.g. Meeting #5"
                   style={inputStyle}
                 />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Stage (optional)</label>
+                <select value={amendForm.milestone_id} onChange={e => setAmendForm(f => ({ ...f, milestone_id: e.target.value }))} style={{ ...inputStyle, cursor: 'pointer' }}>
+                  <option value="">Not tied to a stage</option>
+                  {milestones.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+                </select>
               </div>
 
               {amendError && (

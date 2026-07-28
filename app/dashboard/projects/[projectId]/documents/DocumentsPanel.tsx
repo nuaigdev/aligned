@@ -6,6 +6,8 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { formatDate, formatFileSize } from '@/lib/utils'
 import type { Document } from '@/types'
 
+interface MilestoneOption { id: string; title: string }
+
 const FILE_ICON: Record<string, string> = {
   pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊',
   ppt: '📑', pptx: '📑', png: '🖼', jpg: '🖼', jpeg: '🖼',
@@ -20,10 +22,12 @@ function fileIcon(fileType: string | null) {
 export default function DocumentsPanel({
   projectId,
   initialDocuments,
+  milestones,
   canManage,
 }: {
   projectId: string
   initialDocuments: Document[]
+  milestones: MilestoneOption[]
   canManage: boolean
 }) {
   const router = useRouter()
@@ -34,6 +38,9 @@ export default function DocumentsPanel({
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [uploadMilestoneId, setUploadMilestoneId] = useState('')
+
+  const milestoneTitleById = new Map(milestones.map(m => [m.id, m.title]))
 
   async function uploadFile(file: File) {
     setUploading(true)
@@ -57,6 +64,7 @@ export default function DocumentsPanel({
 
     await supabase.from('documents').insert({
       project_id: projectId,
+      milestone_id: uploadMilestoneId || null,
       name: file.name,
       storage_path: storagePath,
       file_type: ext || null,
@@ -107,6 +115,23 @@ export default function DocumentsPanel({
     <div>
       {/* Drop zone / upload area */}
       {canManage && (
+        <>
+          {milestones.length > 0 && (
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Attach uploads to a stage (optional)</label>
+              <select
+                value={uploadMilestoneId}
+                onChange={e => setUploadMilestoneId(e.target.value)}
+                style={{
+                  padding: '7px 10px', border: '0.5px solid var(--border-medium)', borderRadius: '7px',
+                  fontSize: '13px', color: 'var(--text-primary)', outline: 'none', background: 'var(--bg-primary)', cursor: 'pointer',
+                }}
+              >
+                <option value="">Not tied to a stage</option>
+                {milestones.map(m => <option key={m.id} value={m.id}>{m.title}</option>)}
+              </select>
+            </div>
+          )}
         <div
           onDragOver={e => { e.preventDefault(); setDragOver(true) }}
           onDragLeave={() => setDragOver(false)}
@@ -136,6 +161,7 @@ export default function DocumentsPanel({
             </>
           )}
         </div>
+        </>
       )}
 
       {uploadError && (
@@ -150,7 +176,14 @@ export default function DocumentsPanel({
           <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '11px 14px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px' }}>
             <span style={{ fontSize: '18px', flexShrink: 0 }}>{fileIcon(doc.file_type)}</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.name}</span>
+                {doc.milestone_id && milestoneTitleById.get(doc.milestone_id) && (
+                  <span style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 500, flexShrink: 0 }}>
+                    {milestoneTitleById.get(doc.milestone_id)}
+                  </span>
+                )}
+              </div>
               <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '1px' }}>
                 {doc.file_type?.toUpperCase()}
                 {doc.file_size_bytes ? ` · ${formatFileSize(doc.file_size_bytes)}` : ''}
