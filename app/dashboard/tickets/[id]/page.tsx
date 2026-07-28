@@ -1,10 +1,12 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
+import { ArrowLeft } from 'lucide-react'
 import { formatTicketRef } from '@/lib/utils'
 import TicketDetail from './TicketDetail'
 import TicketComments from './TicketComments'
 import TicketAttachments from './TicketAttachments'
+import TicketPropertiesPanel from './TicketPropertiesPanel'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,31 +48,41 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
 
   return (
     <div>
-      <div style={{ marginBottom: '16px', fontSize: '12px' }}>
-        <Link href="/dashboard/tickets" style={{ color: '#EA580C', textDecoration: 'none' }}>Tickets</Link>
-        <span style={{ color: 'var(--text-tertiary)' }}> / {formatTicketRef(ticket.ref_number)} · {client?.name}</span>
-        {ticket.projects && (
-          <span style={{ color: 'var(--text-tertiary)' }}> · {(ticket.projects as any).name}</span>
-        )}
+      <Link
+        href="/dashboard/tickets"
+        style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--text-tertiary)', textDecoration: 'none', marginBottom: '10px' }}
+      >
+        <ArrowLeft size={12} /> Tickets
+      </Link>
+
+      <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginBottom: '16px' }}>
+        {formatTicketRef(ticket.ref_number)} · {client?.name}
+        {ticket.projects && ` · ${(ticket.projects as any).name}`}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', maxWidth: '760px' }}>
-        <TicketDetail
-          ticket={ticket}
-          candidatePool={candidatePool}
-          initialAssigneeIds={(assignees ?? []).map(a => a.team_member_id)}
-        />
-        <TicketAttachments
-          ticketId={ticket.id}
-          projectId={ticket.project_id}
-          initialDocuments={documents ?? []}
-        />
-        <TicketComments
-          ticketId={ticket.id}
-          initialComments={comments}
-          candidateMentions={candidatePool}
-          currentTeamMemberId={user?.id ?? ''}
-        />
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 260px', gap: '20px', alignItems: 'start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+          <TicketDetail ticket={ticket} />
+          <TicketAttachments
+            ticketId={ticket.id}
+            projectId={ticket.project_id}
+            initialDocuments={documents ?? []}
+          />
+          <TicketComments
+            ticketId={ticket.id}
+            initialComments={comments}
+            candidateMentions={candidatePool}
+            currentTeamMemberId={user?.id ?? ''}
+          />
+        </div>
+
+        <div style={{ position: 'sticky', top: '20px' }}>
+          <TicketPropertiesPanel
+            ticket={ticket}
+            candidatePool={candidatePool}
+            initialAssigneeIds={(assignees ?? []).map(a => a.team_member_id)}
+          />
+        </div>
       </div>
     </div>
   )

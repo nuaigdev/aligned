@@ -1,10 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { formatTicketRef, TICKET_PRIORITY_COLOR, formatRelative, getInitials } from '@/lib/utils'
 import { MessageSquare, CalendarClock } from 'lucide-react'
-import type { Ticket, TeamMember } from '@/types'
+import { QuickDropdown, DropdownItem, PillTrigger, Dot } from '@/components/dashboard/QuickDropdown'
+import { TICKET_PRIORITY_LABELS } from '@/types'
+import type { Ticket, TeamMember, TicketPriority } from '@/types'
 
 export interface BoardTicket extends Ticket {
   client_name?: string
@@ -23,11 +26,15 @@ export default function TicketCard({
   ticket,
   draggable,
   onDragStart,
+  onPriorityChange,
 }: {
   ticket: BoardTicket
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
+  onPriorityChange?: (ticketId: string, priority: TicketPriority) => void
 }) {
+  const [priorityOpen, setPriorityOpen] = useState(false)
+
   const isOverdue = !!ticket.due_date
     && !['resolved', 'closed'].includes(ticket.status)
     && new Date(ticket.due_date) < new Date(new Date().toDateString())
@@ -60,25 +67,44 @@ export default function TicketCard({
           {' · '}{ticket.client_name}
         </div>
 
-        {(categoryLabel || ticket.blocked_on || isOverdue) && (
-          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
-            {categoryLabel && (
-              <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 500 }}>
-                {categoryLabel}
-              </span>
-            )}
-            {ticket.blocked_on && (
-              <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontWeight: 500 }}>
-                Waiting on {ticket.blocked_on}
-              </span>
-            )}
-            {isOverdue && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 500 }}>
-                <CalendarClock size={10} /> Overdue
-              </span>
-            )}
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px', alignItems: 'center' }}>
+          {onPriorityChange ? (
+            <QuickDropdown
+              open={priorityOpen}
+              onToggle={() => setPriorityOpen(o => !o)}
+              trigger={<PillTrigger color={priorityColor} bg={`${priorityColor}18`} label={TICKET_PRIORITY_LABELS[ticket.priority]} chevron={false} />}
+            >
+              {(Object.keys(TICKET_PRIORITY_LABELS) as TicketPriority[]).map(p => (
+                <DropdownItem
+                  key={p}
+                  active={p === ticket.priority}
+                  onClick={() => { setPriorityOpen(false); onPriorityChange(ticket.id, p) }}
+                >
+                  <Dot color={TICKET_PRIORITY_COLOR[p]} /> {TICKET_PRIORITY_LABELS[p]}
+                </DropdownItem>
+              ))}
+            </QuickDropdown>
+          ) : (
+            <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: `${priorityColor}18`, color: priorityColor, fontWeight: 500 }}>
+              {TICKET_PRIORITY_LABELS[ticket.priority]}
+            </span>
+          )}
+          {categoryLabel && (
+            <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 500 }}>
+              {categoryLabel}
+            </span>
+          )}
+          {ticket.blocked_on && (
+            <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontWeight: 500 }}>
+              Waiting on {ticket.blocked_on}
+            </span>
+          )}
+          {isOverdue && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 500 }}>
+              <CalendarClock size={10} /> Overdue
+            </span>
+          )}
+        </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex' }}>
