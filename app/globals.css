@@ -79,6 +79,50 @@ body {
   outline-offset: 2px;
 }
 
+/* ============================================================
+   Motion primitives — deliberately pure CSS (no framer-motion, no
+   client component boundary) so every list/card page can stay a
+   Server Component. Entrance is a one-shot animation on mount;
+   hover is a GPU-cheap transform + shadow, not a layout-affecting
+   property, so this stays smooth even with many cards on screen.
+   ============================================================ */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-in {
+  animation: fadeInUp 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hover-card {
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.hover-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-medium);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.06);
+}
+
+.hover-lift {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+/* Suave gradient wordmark — the one deliberate exception to "flat
+   color everywhere," matching logo.png's own gradient. Falls back
+   to solid brand color if background-clip: text isn't supported. */
+.brand-wordmark {
+  background: linear-gradient(120deg, #fb923c 0%, #ea580c 55%, #c2410c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: var(--brand-600);
+  -webkit-text-fill-color: transparent;
+}
+
 /* Utility classes used across components */
 @layer components {
   .card {

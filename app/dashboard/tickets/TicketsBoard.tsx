@@ -1,11 +1,12 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { LayoutGrid, List as ListIcon, Search } from 'lucide-react'
+import { LayoutGrid, List as ListIcon, Search, Plus, Inbox } from 'lucide-react'
 import { updateTicket } from '@/lib/tickets/team-actions'
-import { TICKET_LANES, TICKET_STATUS_LABELS } from '@/types'
+import { TICKET_STATUS_CONFIG } from '@/lib/utils'
+import { TICKET_LANES } from '@/types'
 import type { TicketStatus, TeamMember, Client, Project } from '@/types'
 import TicketCard, { type BoardTicket } from './TicketCard'
 import NewTicketModal from './NewTicketModal'
@@ -77,6 +78,7 @@ export default function TicketsBoard({
                 background: filter === f ? 'var(--bg-primary)' : 'transparent',
                 color: filter === f ? 'var(--text-primary)' : 'var(--text-tertiary)',
                 textTransform: 'capitalize',
+                transition: 'background .12s, color .12s',
               }}
             >
               {f}
@@ -93,57 +95,71 @@ export default function TicketsBoard({
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', background: 'var(--bg-tertiary)', borderRadius: '8px', padding: '3px' }}>
-          <button onClick={() => setView('board')} title="Board" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'board' ? 'var(--bg-primary)' : 'transparent', color: view === 'board' ? '#EA580C' : 'var(--text-tertiary)', display: 'flex' }}>
+          <button onClick={() => setView('board')} title="Board" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'board' ? 'var(--bg-primary)' : 'transparent', color: view === 'board' ? 'var(--brand-600)' : 'var(--text-tertiary)', display: 'flex', transition: 'background .12s, color .12s' }}>
             <LayoutGrid size={14} />
           </button>
-          <button onClick={() => setView('list')} title="List" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'list' ? 'var(--bg-primary)' : 'transparent', color: view === 'list' ? '#EA580C' : 'var(--text-tertiary)', display: 'flex' }}>
+          <button onClick={() => setView('list')} title="List" style={{ padding: '6px', borderRadius: '6px', border: 'none', cursor: 'pointer', background: view === 'list' ? 'var(--bg-primary)' : 'transparent', color: view === 'list' ? 'var(--brand-600)' : 'var(--text-tertiary)', display: 'flex', transition: 'background .12s, color .12s' }}>
             <ListIcon size={14} />
           </button>
         </div>
 
         <button
           onClick={() => setShowNew(true)}
-          style={{ padding: '7px 14px', borderRadius: '8px', border: 'none', background: '#EA580C', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '5px', padding: '7px 14px', borderRadius: '8px', border: 'none', background: 'var(--brand-600)', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer' }}
         >
-          + New ticket
+          <Plus size={14} /> New ticket
         </button>
       </div>
 
       {view === 'board' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', alignItems: 'start' }}>
-          {TICKET_LANES.map(lane => {
+          {TICKET_LANES.map((lane, laneIndex) => {
             const laneTickets = filtered.filter(t => t.status === lane)
+            const cfg = TICKET_STATUS_CONFIG[lane]
             return (
               <div
                 key={lane}
+                className="animate-in"
                 onDragOver={e => { e.preventDefault(); setDragOverLane(lane) }}
                 onDragLeave={() => setDragOverLane(cur => (cur === lane ? null : cur))}
                 onDrop={e => handleDrop(e, lane)}
                 style={{
                   background: dragOverLane === lane ? 'var(--brand-50)' : 'var(--bg-tertiary)',
-                  borderRadius: '10px', padding: '10px', minHeight: '120px',
+                  borderRadius: '10px', overflow: 'hidden', minHeight: '140px',
                   transition: 'background .12s',
+                  animationDelay: `${laneIndex * 40}ms`,
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', padding: '0 2px' }}>
-                  <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)' }}>{TICKET_STATUS_LABELS[lane]}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{laneTickets.length}</span>
-                </div>
+                <div style={{ height: '3px', background: cfg.color, opacity: 0.55 }} />
+                <div style={{ padding: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', padding: '0 2px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)' }}>{cfg.label}</span>
+                    <span style={{
+                      fontSize: '11px', fontWeight: 500, padding: '1px 7px', borderRadius: '8px',
+                      background: cfg.bg, color: cfg.color,
+                    }}>
+                      {laneTickets.length}
+                    </span>
+                  </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <AnimatePresence initial={false}>
-                    {laneTickets.map(ticket => (
-                      <TicketCard
-                        key={ticket.id}
-                        ticket={ticket}
-                        draggable
-                        onDragStart={e => e.dataTransfer.setData('text/ticket-id', ticket.id)}
-                      />
-                    ))}
-                  </AnimatePresence>
-                  {laneTickets.length === 0 && (
-                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '16px 0' }}>No tickets</div>
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <AnimatePresence initial={false}>
+                      {laneTickets.map(ticket => (
+                        <TicketCard
+                          key={ticket.id}
+                          ticket={ticket}
+                          draggable
+                          onDragStart={e => e.dataTransfer.setData('text/ticket-id', ticket.id)}
+                        />
+                      ))}
+                    </AnimatePresence>
+                    {laneTickets.length === 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '20px 0' }}>
+                        <Inbox size={16} strokeWidth={1.5} />
+                        <span style={{ fontSize: '11px' }}>No tickets</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             )
@@ -157,8 +173,9 @@ export default function TicketsBoard({
             ))}
           </AnimatePresence>
           {filtered.length === 0 && (
-            <div style={{ padding: '48px', textAlign: 'center', fontSize: '13px', color: 'var(--text-tertiary)', background: 'var(--bg-tertiary)', borderRadius: '10px' }}>
-              No tickets match this view
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', padding: '48px', textAlign: 'center', color: 'var(--text-tertiary)', background: 'var(--bg-tertiary)', borderRadius: '10px' }}>
+              <Inbox size={20} strokeWidth={1.5} />
+              <span style={{ fontSize: '13px' }}>No tickets match this view</span>
             </div>
           )}
         </div>

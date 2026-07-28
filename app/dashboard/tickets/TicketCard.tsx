@@ -2,15 +2,21 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { formatTicketRef, TICKET_PRIORITY_COLOR, formatRelative } from '@/lib/utils'
-import { getInitials } from '@/lib/utils'
-import { MessageSquare } from 'lucide-react'
+import { formatTicketRef, TICKET_PRIORITY_COLOR, formatRelative, getInitials } from '@/lib/utils'
+import { MessageSquare, CalendarClock } from 'lucide-react'
 import type { Ticket, TeamMember } from '@/types'
 
 export interface BoardTicket extends Ticket {
   client_name?: string
   project_name?: string | null
   assignee_members?: TeamMember[]
+}
+
+const CATEGORY_LABELS: Record<string, string> = {
+  bug: 'Bug',
+  feature_request: 'Feature',
+  question: 'Question',
+  billing: 'Billing',
 }
 
 export default function TicketCard({
@@ -22,32 +28,57 @@ export default function TicketCard({
   draggable?: boolean
   onDragStart?: (e: React.DragEvent) => void
 }) {
+  const isOverdue = !!ticket.due_date
+    && !['resolved', 'closed'].includes(ticket.status)
+    && new Date(ticket.due_date) < new Date(new Date().toDateString())
+
+  const categoryLabel = CATEGORY_LABELS[ticket.category]
+  const priorityColor = TICKET_PRIORITY_COLOR[ticket.priority]
+
   return (
     <div draggable={draggable} onDragStart={onDragStart} style={{ cursor: draggable ? 'grab' : 'pointer' }}>
       <motion.div
         layoutId={`ticket-${ticket.id}`}
         layout
-        whileHover={{ y: -1 }}
+        whileHover={{ y: -2 }}
         transition={{ type: 'spring', stiffness: 500, damping: 40 }}
         style={{
           background: 'var(--bg-primary)',
           border: '0.5px solid var(--border-default)',
+          borderLeft: `3px solid ${priorityColor}`,
           borderRadius: '8px',
-          padding: '10px 12px',
+          padding: '10px 12px 11px',
         }}
       >
       <Link href={`/dashboard/tickets/${ticket.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '6px', marginBottom: '5px' }}>
-          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: TICKET_PRIORITY_COLOR[ticket.priority], marginTop: '5px', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4 }}>{ticket.title}</span>
+        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.4, marginBottom: '5px' }}>
+          {ticket.title}
         </div>
 
-        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>
-          {formatTicketRef(ticket.ref_number)} · {ticket.client_name}
-          {ticket.blocked_on && (
-            <span style={{ color: 'var(--warning-text)' }}> · Waiting on {ticket.blocked_on === 'client' ? 'client' : 'team'}</span>
-          )}
+        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '7px' }}>
+          <span style={{ fontFamily: 'var(--font-geist-mono, monospace)' }}>{formatTicketRef(ticket.ref_number)}</span>
+          {' · '}{ticket.client_name}
         </div>
+
+        {(categoryLabel || ticket.blocked_on || isOverdue) && (
+          <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
+            {categoryLabel && (
+              <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 500 }}>
+                {categoryLabel}
+              </span>
+            )}
+            {ticket.blocked_on && (
+              <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--warning-bg)', color: 'var(--warning-text)', fontWeight: 500 }}>
+                Waiting on {ticket.blocked_on}
+              </span>
+            )}
+            {isOverdue && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 500 }}>
+                <CalendarClock size={10} /> Overdue
+              </span>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex' }}>

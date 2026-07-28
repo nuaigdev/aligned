@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { TICKET_STATUS_CONFIG } from '@/lib/utils'
 import TicketsBoard from './TicketsBoard'
 import type { BoardTicket } from './TicketCard'
 
@@ -33,13 +34,33 @@ export default async function TicketsPage() {
     comment_count: t.ticket_comments?.[0]?.count ?? 0,
   }))
 
+  const openCount = tickets.filter(t => t.status === 'open').length
+  const inProgressCount = tickets.filter(t => t.status === 'in_progress').length
+  const urgentCount = tickets.filter(t => t.priority === 'urgent' && ['open', 'in_progress'].includes(t.status)).length
+
   return (
     <div>
-      <div style={{ marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>Tickets</h1>
-        <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-          {tickets.length} ticket{tickets.length === 1 ? '' : 's'} visible to you
-        </p>
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '20px' }}>
+        <div>
+          <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>Tickets</h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+            {tickets.length} ticket{tickets.length === 1 ? '' : 's'} visible to you
+          </p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '4px 10px', borderRadius: '8px', background: TICKET_STATUS_CONFIG.open.bg, color: TICKET_STATUS_CONFIG.open.color, fontWeight: 500 }}>
+            {openCount} open
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '4px 10px', borderRadius: '8px', background: TICKET_STATUS_CONFIG.in_progress.bg, color: TICKET_STATUS_CONFIG.in_progress.color, fontWeight: 500 }}>
+            {inProgressCount} in progress
+          </span>
+          {urgentCount > 0 && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '4px 10px', borderRadius: '8px', background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 500 }}>
+              {urgentCount} urgent
+            </span>
+          )}
+        </div>
       </div>
 
       <TicketsBoard

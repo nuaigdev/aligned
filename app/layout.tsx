@@ -39,7 +39,7 @@ export default function RootLayout({
         <div className="mobile-block">
           <div className="mobile-block__inner">
             <Image src="/logo.png" alt="Aligned" width={40} height={40} style={{ marginBottom: '16px' }} />
-            <div className="mobile-block__logo">Aligned</div>
+            <div className="mobile-block__logo brand-wordmark">Aligned</div>
             <h1 className="mobile-block__title">Desktop only</h1>
             <p className="mobile-block__body">
               Aligned is designed for desktop use. Please open this page on a
@@ -84,12 +84,8 @@ export default function RootLayout({
           .mobile-block__logo {
             font-size: 18px;
             font-weight: 600;
-            color: var(--text-primary);
             margin-bottom: 32px;
-            letter-spacing: -0.02em;
-          }
-          .mobile-block__logo span {
-            color: #EA580C;
+            letter-spacing: -0.03em;
           }
           .mobile-block__title {
             font-size: 22px;

@@ -20,12 +20,14 @@ export function Logo({
         style={{ flexShrink: 0 }}
       />
       {showWordmark && (
-        <span style={{
-          fontSize: `${wordmarkSize}px`,
-          fontWeight: 600,
-          letterSpacing: '-0.02em',
-          color: 'var(--text-primary)',
-        }}>
+        <span
+          className="brand-wordmark"
+          style={{
+            fontSize: `${wordmarkSize}px`,
+            fontWeight: 600,
+            letterSpacing: '-0.03em',
+          }}
+        >
           Aligned
         </span>
       )}

@@ -1,6 +1,9 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
+import { Plus, Users, UserCog, KeyRound, Building2 } from 'lucide-react'
+import { StatCard } from '@/components/dashboard/StatCard'
+import { EmptyState } from '@/components/dashboard/EmptyState'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,23 +12,28 @@ export default async function ClientsPage() {
 
   const { data: clients } = await supabase
     .from('clients')
-    .select('id, name, slug, created_at, projects(id)')
+    .select('id, name, slug, created_at, login_id, manager_id, projects(id), manager:team_members(name)')
     .order('name')
+
+  const total = clients?.length ?? 0
+  const withManager = clients?.filter(c => c.manager_id).length ?? 0
+  const withLogin = clients?.filter(c => c.login_id).length ?? 0
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '20px' }}>
         <div>
           <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>Clients</h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>{clients?.length ?? 0} total</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>{total} total</p>
         </div>
         <Link
           href="/dashboard/clients/new"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
+            gap: '6px',
             padding: '7px 14px',
-            background: '#EA580C',
+            background: 'var(--brand-600)',
             color: '#fff',
             borderRadius: '8px',
             fontSize: '13px',
@@ -33,39 +41,50 @@ export default async function ClientsPage() {
             textDecoration: 'none',
           }}
         >
-          + New client
+          <Plus size={14} /> New client
         </Link>
       </div>
 
+      {total > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '24px' }}>
+          <StatCard icon={Users} label="Total clients" value={total} accent="var(--brand-600)" delayMs={0} />
+          <StatCard icon={UserCog} label="Manager assigned" value={withManager} accent="#0C447C" delayMs={40} />
+          <StatCard icon={KeyRound} label="Portal login issued" value={withLogin} accent="#3B6D11" delayMs={80} />
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {clients?.map(client => {
+        {clients?.map((client, i) => {
           const projectCount = (client.projects as any[])?.length ?? 0
+          const manager = client.manager as any
           return (
             <Link
               key={client.id}
               href={`/dashboard/clients/${client.id}`}
+              className="hover-card animate-in"
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: '14px',
-                padding: '12px 16px',
+                padding: '13px 16px',
                 background: 'var(--bg-primary)',
                 border: '0.5px solid var(--border-default)',
                 borderRadius: '10px',
                 textDecoration: 'none',
+                animationDelay: `${Math.min(i, 10) * 30}ms`,
               }}
             >
               <div style={{
-                width: '32px',
-                height: '32px',
-                borderRadius: '8px',
-                background: 'var(--brand-50)',
+                width: '36px',
+                height: '36px',
+                borderRadius: '9px',
+                background: 'linear-gradient(135deg, var(--brand-200), var(--brand-600))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: '12px',
-                fontWeight: 500,
-                color: 'var(--brand-800)',
+                fontWeight: 600,
+                color: '#fff',
                 flexShrink: 0,
               }}>
                 {client.name.slice(0, 2).toUpperCase()}
@@ -74,8 +93,14 @@ export default async function ClientsPage() {
                 <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{client.name}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '1px' }}>
                   Added {formatDate(client.created_at)}
+                  {manager?.name && ` · Managed by ${manager.name}`}
                 </div>
               </div>
+              {client.login_id && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--success-text)', flexShrink: 0 }}>
+                  <KeyRound size={11} /> Portal active
+                </div>
+              )}
               <div style={{
                 fontSize: '11px',
                 padding: '2px 9px',
@@ -91,19 +116,14 @@ export default async function ClientsPage() {
           )
         })}
 
-        {(!clients || clients.length === 0) && (
-          <div style={{
-            padding: '48px 32px',
-            textAlign: 'center',
-            background: 'var(--bg-primary)',
-            border: '0.5px solid var(--border-default)',
-            borderRadius: '10px',
-          }}>
-            <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>No clients yet</div>
-            <Link href="/dashboard/clients/new" style={{ fontSize: '13px', color: '#EA580C', textDecoration: 'none' }}>
-              Add your first client →
-            </Link>
-          </div>
+        {total === 0 && (
+          <EmptyState
+            icon={Building2}
+            title="No clients yet"
+            description="Add your first client to start tracking projects, tickets, and decisions for them."
+            actionLabel="Add your first client"
+            actionHref="/dashboard/clients/new"
+          />
         )}
       </div>
     </div>
