@@ -45,10 +45,12 @@ export default function MilestonesPanel({
   projectId,
   initialMilestones,
   contacts,
+  canManage,
 }: {
   projectId: string
   initialMilestones: Milestone[]
   contacts: Contact[]
+  canManage: boolean
 }) {
   const router = useRouter()
   const supabase = createBrowserClient()
@@ -157,23 +159,25 @@ export default function MilestonesPanel({
   return (
     <div>
       {/* Toolbar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
-        <button
-          onClick={() => { setShowForm(v => !v); setForm(emptyForm) }}
-          style={{
-            padding: '7px 14px',
-            background: showForm ? 'var(--bg-primary)' : '#EA580C',
-            color: showForm ? 'var(--text-secondary)' : '#fff',
-            border: showForm ? '0.5px solid var(--border-default)' : 'none',
-            borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
-          }}
-        >
-          {showForm ? 'Cancel' : '+ Add milestone'}
-        </button>
-      </div>
+      {canManage && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
+          <button
+            onClick={() => { setShowForm(v => !v); setForm(emptyForm) }}
+            style={{
+              padding: '7px 14px',
+              background: showForm ? 'var(--bg-primary)' : '#EA580C',
+              color: showForm ? 'var(--text-secondary)' : '#fff',
+              border: showForm ? '0.5px solid var(--border-default)' : 'none',
+              borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            {showForm ? 'Cancel' : '+ Add milestone'}
+          </button>
+        </div>
+      )}
 
       {/* Add form */}
-      {showForm && (
+      {canManage && showForm && (
         <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '20px', marginBottom: '14px' }}>
           <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', alignItems: 'end' }}>
@@ -248,7 +252,7 @@ export default function MilestonesPanel({
                     {status.label}
                   </span>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {canSend && (
+                    {canManage && canSend && (
                       <button
                         onClick={() => openSendModal(m)}
                         style={{
@@ -260,7 +264,7 @@ export default function MilestonesPanel({
                         Send for sign-off
                       </button>
                     )}
-                    {nextStatuses.length > 0 && nextStatuses.map(s => (
+                    {canManage && nextStatuses.length > 0 && nextStatuses.map(s => (
                       <button
                         key={s}
                         disabled={isUpdating}
@@ -284,9 +288,11 @@ export default function MilestonesPanel({
         {initialMilestones.length === 0 && !showForm && (
           <div style={{ padding: '48px 32px', textAlign: 'center', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>No milestones yet</div>
-            <button onClick={() => setShowForm(true)} style={{ fontSize: '13px', color: '#EA580C', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-              Add the first milestone →
-            </button>
+            {canManage && (
+              <button onClick={() => setShowForm(true)} style={{ fontSize: '13px', color: '#EA580C', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                Add the first milestone →
+              </button>
+            )}
           </div>
         )}
       </div>

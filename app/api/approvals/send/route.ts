@@ -3,10 +3,18 @@ import { createSupabaseServerClient, createServiceRoleClient } from '@/lib/supab
 import { sendApprovalEmail } from '@/lib/email'
 
 export async function POST(req: NextRequest) {
-  // Requires team auth
+  // Requires team auth — admin or manager only, matching migration 029's
+  // restriction on writes to milestones/decisions/approval_links (this
+  // route uses the service-role client, which bypasses that RLS entirely,
+  // so the check has to happen here too).
   const authClient = createSupabaseServerClient()
   const { data: { session } } = await authClient.auth.getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: member } = await authClient.from('team_members').select('role').eq('id', session.user.id).maybeSingle()
+  if (member?.role !== 'admin' && member?.role !== 'manager') {
+    return NextResponse.json({ error: 'Only admins and managers can send approval requests.' }, { status: 403 })
+  }
 
   const { project_id, target_type, target_id, recipients } = await req.json()
   if (!project_id || !target_type || !target_id || !recipients?.length) {

@@ -20,9 +20,11 @@ function fileIcon(fileType: string | null) {
 export default function DocumentsPanel({
   projectId,
   initialDocuments,
+  canManage,
 }: {
   projectId: string
   initialDocuments: Document[]
+  canManage: boolean
 }) {
   const router = useRouter()
   const supabase = createBrowserClient()
@@ -104,35 +106,37 @@ export default function DocumentsPanel({
   return (
     <div>
       {/* Drop zone / upload area */}
-      <div
-        onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        style={{
-          border: `1.5px dashed ${dragOver ? '#EA580C' : 'var(--border-medium)'}`,
-          borderRadius: '10px',
-          padding: '28px',
-          textAlign: 'center',
-          background: dragOver ? 'var(--brand-50)' : 'var(--bg-primary)',
-          marginBottom: '16px',
-          transition: 'all .15s',
-          cursor: uploading ? 'wait' : 'pointer',
-        }}
-        onClick={() => !uploading && fileInputRef.current?.click()}
-      >
-        <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileInput} />
-        {uploading ? (
-          <div style={{ fontSize: '13px', color: '#EA580C' }}>Uploading…</div>
-        ) : (
-          <>
-            <div style={{ fontSize: '22px', marginBottom: '8px' }}>📁</div>
-            <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>
-              Drop a file here or click to upload
-            </div>
-            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>PDF, Word, Excel, images and more</div>
-          </>
-        )}
-      </div>
+      {canManage && (
+        <div
+          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          style={{
+            border: `1.5px dashed ${dragOver ? '#EA580C' : 'var(--border-medium)'}`,
+            borderRadius: '10px',
+            padding: '28px',
+            textAlign: 'center',
+            background: dragOver ? 'var(--brand-50)' : 'var(--bg-primary)',
+            marginBottom: '16px',
+            transition: 'all .15s',
+            cursor: uploading ? 'wait' : 'pointer',
+          }}
+          onClick={() => !uploading && fileInputRef.current?.click()}
+        >
+          <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={handleFileInput} />
+          {uploading ? (
+            <div style={{ fontSize: '13px', color: '#EA580C' }}>Uploading…</div>
+          ) : (
+            <>
+              <div style={{ fontSize: '22px', marginBottom: '8px' }}>📁</div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                Drop a file here or click to upload
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>PDF, Word, Excel, images and more</div>
+            </>
+          )}
+        </div>
+      )}
 
       {uploadError && (
         <div style={{ background: 'var(--danger-bg)', border: '0.5px solid #F09595', borderRadius: '8px', padding: '10px 14px', fontSize: '13px', color: 'var(--danger-text)', marginBottom: '14px' }}>
@@ -162,12 +166,14 @@ export default function DocumentsPanel({
               >
                 {downloadingId === doc.id ? '…' : 'Download'}
               </button>
-              <button
-                onClick={() => handleDelete(doc)}
-                style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: '0.5px solid var(--border-default)', background: 'var(--bg-primary)', color: 'var(--danger-text)', cursor: 'pointer' }}
-              >
-                Delete
-              </button>
+              {canManage && (
+                <button
+                  onClick={() => handleDelete(doc)}
+                  style={{ fontSize: '12px', padding: '4px 10px', borderRadius: '6px', border: '0.5px solid var(--border-default)', background: 'var(--bg-primary)', color: 'var(--danger-text)', cursor: 'pointer' }}
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         ))}

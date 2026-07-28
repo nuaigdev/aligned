@@ -8,13 +8,16 @@ export const dynamic = 'force-dynamic'
 
 export default async function DocumentsPage({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: project }, { data: documents }] = await Promise.all([
+  const [{ data: project }, { data: documents }, { data: me }] = await Promise.all([
     supabase.from('projects').select('id, name, clients(name)').eq('id', params.projectId).single(),
     supabase.from('documents').select('*').eq('project_id', params.projectId).order('created_at', { ascending: false }),
+    user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
   ])
 
   if (!project) notFound()
+  const canManage = me?.role === 'admin' || me?.role === 'manager'
 
   return (
     <div>
@@ -33,7 +36,7 @@ export default async function DocumentsPage({ params }: { params: { projectId: s
         </p>
       </div>
 
-      <DocumentsPanel projectId={params.projectId} initialDocuments={(documents ?? []) as Document[]} />
+      <DocumentsPanel projectId={params.projectId} initialDocuments={(documents ?? []) as Document[]} canManage={canManage} />
     </div>
   )
 }

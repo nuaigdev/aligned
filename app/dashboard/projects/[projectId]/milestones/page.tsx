@@ -8,13 +8,16 @@ export const dynamic = 'force-dynamic'
 
 export default async function MilestonesPage({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: project }, { data: milestones }] = await Promise.all([
+  const [{ data: project }, { data: milestones }, { data: me }] = await Promise.all([
     supabase.from('projects').select('id, name, client_id, clients(name)').eq('id', params.projectId).single(),
     supabase.from('milestones').select('*').eq('project_id', params.projectId).order('sort_order').order('created_at'),
+    user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
   ])
 
   if (!project) notFound()
+  const canManage = me?.role === 'admin' || me?.role === 'manager'
 
   const { data: contacts } = await supabase
     .from('client_contacts')
@@ -44,6 +47,7 @@ export default async function MilestonesPage({ params }: { params: { projectId: 
         projectId={params.projectId}
         initialMilestones={(milestones ?? []) as Milestone[]}
         contacts={(contacts ?? []) as Array<{ id: string; name: string; email: string }>}
+        canManage={canManage}
       />
     </div>
   )

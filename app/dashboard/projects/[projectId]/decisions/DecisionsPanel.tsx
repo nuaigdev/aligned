@@ -28,10 +28,12 @@ export default function DecisionsPanel({
   projectId,
   initialDecisions,
   contacts,
+  canManage,
 }: {
   projectId: string
   initialDecisions: Decision[]
   contacts: Contact[]
+  canManage: boolean
 }) {
   const router = useRouter()
   const supabase = createBrowserClient()
@@ -195,23 +197,25 @@ export default function DecisionsPanel({
   return (
     <div>
       {/* Toolbar */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
-        <button
-          onClick={() => { setShowForm(v => !v); setForm(emptyForm) }}
-          style={{
-            padding: '7px 14px',
-            background: showForm ? 'var(--bg-primary)' : '#EA580C',
-            color: showForm ? 'var(--text-secondary)' : '#fff',
-            border: showForm ? '0.5px solid var(--border-default)' : 'none',
-            borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
-          }}
-        >
-          {showForm ? 'Cancel' : '+ Add decision'}
-        </button>
-      </div>
+      {canManage && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '14px' }}>
+          <button
+            onClick={() => { setShowForm(v => !v); setForm(emptyForm) }}
+            style={{
+              padding: '7px 14px',
+              background: showForm ? 'var(--bg-primary)' : '#EA580C',
+              color: showForm ? 'var(--text-secondary)' : '#fff',
+              border: showForm ? '0.5px solid var(--border-default)' : 'none',
+              borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            {showForm ? 'Cancel' : '+ Add decision'}
+          </button>
+        </div>
+      )}
 
       {/* Add form */}
-      {showForm && (
+      {canManage && showForm && (
         <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '20px', marginBottom: '14px' }}>
           <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
@@ -271,7 +275,7 @@ export default function DecisionsPanel({
                     {status.label}
                   </span>
                   <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {d.status === 'draft' && (
+                    {canManage && d.status === 'draft' && (
                       <button
                         disabled={isUpdating}
                         onClick={() => openSendModal(d)}
@@ -284,7 +288,7 @@ export default function DecisionsPanel({
                         Send for approval
                       </button>
                     )}
-                    {d.status === 'approved' && (
+                    {canManage && d.status === 'approved' && (
                       <button
                         disabled={isUpdating}
                         onClick={() => openAmendModal(d)}
@@ -307,9 +311,11 @@ export default function DecisionsPanel({
         {initialDecisions.length === 0 && !showForm && (
           <div style={{ padding: '48px 32px', textAlign: 'center', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px' }}>
             <div style={{ fontSize: '14px', color: 'var(--text-tertiary)', marginBottom: '8px' }}>No decisions recorded yet</div>
-            <button onClick={() => setShowForm(true)} style={{ fontSize: '13px', color: '#EA580C', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-              Add the first decision →
-            </button>
+            {canManage && (
+              <button onClick={() => setShowForm(true)} style={{ fontSize: '13px', color: '#EA580C', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                Add the first decision →
+              </button>
+            )}
           </div>
         )}
       </div>

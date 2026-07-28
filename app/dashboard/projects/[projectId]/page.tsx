@@ -6,6 +6,8 @@ import { ExternalLink } from 'lucide-react'
 import CopyButton from './CopyButton'
 import DeleteConfirmButton from '@/components/dashboard/DeleteConfirmButton'
 import { deleteProject } from '@/lib/projects/actions'
+import TicketsBoard from '@/app/dashboard/tickets/TicketsBoard'
+import type { BoardTicket } from '@/app/dashboard/tickets/TicketCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,7 +17,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
 
   const { data: project } = await supabase
     .from('projects')
-    .select('*, clients(id, name, slug, login_id)')
+    .select('*, clients(id, name, slug, login_id, manager_id, must_change_password, last_login_at, last_portal_seen_at, created_at, updated_at)')
     .eq('id', params.projectId)
     .single()
 
@@ -30,6 +32,8 @@ export default async function ProjectPage({ params }: { params: { projectId: str
     { data: recentDecisions },
     { data: recentDocuments },
     { data: me },
+    { data: rawTickets },
+    { data: teamMembers },
   ] = await Promise.all([
     supabase.from('milestones').select('*').eq('project_id', params.projectId).order('sort_order'),
     supabase.from('decisions').select('*').eq('project_id', params.projectId).order('ref_number', { ascending: false }),
@@ -39,9 +43,29 @@ export default async function ProjectPage({ params }: { params: { projectId: str
     supabase.from('decisions').select('id, ref_number, title, status, updated_at').eq('project_id', params.projectId).order('updated_at', { ascending: false }).limit(6),
     supabase.from('documents').select('id, name, created_at, shared_by').eq('project_id', params.projectId).order('created_at', { ascending: false }).limit(6),
     user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase
+      .from('tickets')
+      .select(`
+        *,
+        clients(name, slug),
+        ticket_assignees(team_member_id, team_members!ticket_assignees_team_member_id_fkey(id, name, role, manager_id, email, is_active, created_at, updated_at)),
+        ticket_comments(count)
+      `)
+      .eq('project_id', params.projectId)
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: false }),
+    supabase.from('team_members').select('*').eq('is_active', true).order('name'),
   ])
 
   const canManageProject = me?.role === 'admin' || me?.role === 'manager'
+
+  const projectTickets: BoardTicket[] = (rawTickets ?? []).map((t: any) => ({
+    ...t,
+    client_name: t.clients?.name,
+    client_slug: t.clients?.slug,
+    assignee_members: (t.ticket_assignees ?? []).map((a: any) => a.team_members).filter(Boolean),
+    comment_count: t.ticket_comments?.[0]?.count ?? 0,
+  }))
 
   const completed = milestones?.filter(m => m.status === 'completed').length ?? 0
   const total = milestones?.length ?? 0
@@ -223,6 +247,22 @@ export default async function ProjectPage({ params }: { params: { projectId: str
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>{item.desc}</div>
           </Link>
         ))}
+      </div>
+
+      {/* Tickets — scoped to this project only; a ticket can also exist at
+          just the client level with no project link, so this is a subset of
+          that client's full ticket list, not the whole thing. */}
+      <div style={{ marginBottom: '24px' }}>
+        <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+          Tickets
+        </div>
+        <TicketsBoard
+          initialTickets={projectTickets}
+          teamMembers={teamMembers ?? []}
+          clients={client ? [client] : []}
+          projects={[project as any]}
+          currentTeamMemberId={user?.id ?? ''}
+        />
       </div>
 
       {/* Recent activity */}
