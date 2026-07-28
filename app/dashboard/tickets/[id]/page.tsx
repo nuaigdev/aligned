@@ -22,11 +22,12 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
 
   if (!ticket) notFound()
 
-  const [{ data: assignees }, { data: rawComments }, { data: teamMembers }, { data: documents }] = await Promise.all([
+  const [{ data: assignees }, { data: rawComments }, { data: teamMembers }, { data: documents }, { data: clientProjects }] = await Promise.all([
     supabase.from('ticket_assignees').select('team_member_id').eq('ticket_id', ticket.id),
     supabase.from('ticket_comments').select('*').eq('ticket_id', ticket.id).order('created_at'),
     supabase.from('team_members').select('*').eq('is_active', true).order('name'),
     supabase.from('documents').select('*').eq('ticket_id', ticket.id).order('created_at', { ascending: false }),
+    supabase.from('projects').select('id, name').eq('client_id', ticket.client_id).order('name'),
   ])
 
   const client = ticket.clients as any
@@ -84,6 +85,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
             ticket={ticket}
             candidatePool={candidatePool}
             initialAssigneeIds={(assignees ?? []).map(a => a.team_member_id)}
+            clientProjects={clientProjects ?? []}
           />
         </div>
       </div>

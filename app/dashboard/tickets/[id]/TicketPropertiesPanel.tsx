@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
 import { Plus, X } from 'lucide-react'
@@ -23,14 +24,18 @@ export default function TicketPropertiesPanel({
   ticket,
   candidatePool,
   initialAssigneeIds,
+  clientProjects,
 }: {
   ticket: Ticket
   candidatePool: TeamMember[]
   initialAssigneeIds: string[]
+  clientProjects: Array<{ id: string; name: string }>
 }) {
+  const router = useRouter()
   const [status, setStatus] = useState<TicketStatus>(ticket.status)
   const [priority, setPriority] = useState<TicketPriority>(ticket.priority)
   const [category, setCategory] = useState(ticket.category)
+  const [projectId, setProjectId] = useState(ticket.project_id)
   const [dueDate, setDueDate] = useState(ticket.due_date ?? '')
   const [blockedOn, setBlockedOn] = useState(ticket.blocked_on)
   const [assigneeIds, setAssigneeIds] = useState<string[]>(initialAssigneeIds)
@@ -65,6 +70,16 @@ export default function TicketPropertiesPanel({
     setCategory(next)
     setOpenSection(null)
     if (!(await patch({ category: next }, `Category set to ${next.replace('_', ' ')}`))) setCategory(prev)
+  }
+
+  async function handleProjectChange(next: string | null) {
+    const prev = projectId
+    setProjectId(next)
+    setOpenSection(null)
+    const projectName = clientProjects.find(p => p.id === next)?.name
+    const ok = await patch({ project_id: next }, next ? `Moved to ${projectName ?? 'project'}` : 'Removed from project')
+    if (!ok) setProjectId(prev)
+    else router.refresh() // the breadcrumb/ref line above is server-rendered
   }
 
   async function handleDueDateChange(next: string) {
@@ -141,6 +156,34 @@ export default function TicketPropertiesPanel({
               {c.replace('_', ' ')}
             </DropdownItem>
           ))}
+        </QuickDropdown>
+      </PropertyRow>
+
+      <PropertyRow label="Project">
+        <QuickDropdown
+          open={openSection === 'project'}
+          onToggle={() => setOpenSection(o => (o === 'project' ? null : 'project'))}
+          trigger={
+            <PillTrigger
+              color={projectId ? 'var(--brand-600)' : 'var(--text-tertiary)'}
+              bg={projectId ? 'var(--brand-50)' : 'var(--bg-tertiary)'}
+              label={projectId ? (clientProjects.find(p => p.id === projectId)?.name ?? 'Unknown') : 'None'}
+            />
+          }
+        >
+          <DropdownItem onClick={() => handleProjectChange(null)} active={!projectId}>
+            No project
+          </DropdownItem>
+          {clientProjects.map(p => (
+            <DropdownItem key={p.id} onClick={() => handleProjectChange(p.id)} active={p.id === projectId}>
+              {p.name}
+            </DropdownItem>
+          ))}
+          {clientProjects.length === 0 && (
+            <div style={{ padding: '7px 9px', fontSize: '12px', color: 'var(--text-tertiary)' }}>
+              This client has no projects yet.
+            </div>
+          )}
         </QuickDropdown>
       </PropertyRow>
 
