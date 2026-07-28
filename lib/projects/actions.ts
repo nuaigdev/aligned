@@ -46,6 +46,9 @@ export async function createProject(input: {
  * the client with no project link rather than disappearing.
  */
 export async function deleteProject(projectId: string): Promise<{ ok: true } | { error: string }> {
+  const check = await requireTeamRole(['admin', 'manager'])
+  if ('error' in check) return check
+
   const supabase = createSupabaseServerClient()
   const { error } = await supabase.from('projects').delete().eq('id', projectId)
   if (error) return { error: error.message }

@@ -38,6 +38,9 @@ export async function createClient(name: string): Promise<{ id: string } | { err
  * (DeleteConfirmButton requires typing the client's name).
  */
 export async function deleteClient(clientId: string): Promise<{ ok: true } | { error: string }> {
+  const check = await requireTeamRole(['admin'])
+  if ('error' in check) return check
+
   const supabase = createSupabaseServerClient()
   const { error } = await supabase.from('clients').delete().eq('id', clientId)
   if (error) return { error: error.message }

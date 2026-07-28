@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createBrowserClient } from '@/lib/supabase/client'
+import toast from 'react-hot-toast'
+import { addClientContact, removeClientContact } from '@/lib/clients/contacts-actions'
 import { formatDate, getInitials } from '@/lib/utils'
 import type { ClientContact } from '@/types'
 
@@ -17,13 +18,14 @@ export default function ContactsManager({
   clientId,
   contacts,
   formerContacts,
+  canManage,
 }: {
   clientId: string
   contacts: ClientContact[]
   formerContacts: ClientContact[]
+  canManage: boolean
 }) {
   const router = useRouter()
-  const supabase = createBrowserClient()
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [removing, setRemoving] = useState<string | null>(null)
@@ -40,16 +42,10 @@ export default function ContactsManager({
     setSaving(true)
     setError(null)
 
-    const { error: err } = await supabase.from('client_contacts').insert({
-      client_id: clientId,
-      project_id: null,
-      name: form.name.trim(),
-      email: form.email.trim().toLowerCase(),
-      is_active: true,
-    })
+    const result = await addClientContact({ clientId, name: form.name, email: form.email })
 
-    if (err) {
-      setError(err.message)
+    if ('error' in result) {
+      setError(result.error)
       setSaving(false)
       return
     }
@@ -64,12 +60,12 @@ export default function ContactsManager({
     if (!confirm(`Remove ${contact.name} from default contacts? They will no longer receive approval emails for new projects.`)) return
     setRemoving(contact.id)
 
-    await supabase.from('client_contacts').update({
-      is_active: false,
-      removed_at: new Date().toISOString(),
-    }).eq('id', contact.id)
-
+    const result = await removeClientContact(clientId, contact.id)
     setRemoving(null)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
     router.refresh()
   }
 
@@ -83,22 +79,24 @@ export default function ContactsManager({
         }}>
           Default contacts
         </div>
-        <button
-          onClick={() => { setShowForm(v => !v); setForm({ name: '', email: '' }); setError(null) }}
-          style={{
-            padding: '5px 12px',
-            background: showForm ? 'var(--bg-primary)' : '#EA580C',
-            color: showForm ? 'var(--text-secondary)' : '#fff',
-            border: showForm ? '0.5px solid var(--border-default)' : 'none',
-            borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
-          }}
-        >
-          {showForm ? 'Cancel' : '+ Add contact'}
-        </button>
+        {canManage && (
+          <button
+            onClick={() => { setShowForm(v => !v); setForm({ name: '', email: '' }); setError(null) }}
+            style={{
+              padding: '5px 12px',
+              background: showForm ? 'var(--bg-primary)' : '#EA580C',
+              color: showForm ? 'var(--text-secondary)' : '#fff',
+              border: showForm ? '0.5px solid var(--border-default)' : 'none',
+              borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            {showForm ? 'Cancel' : '+ Add contact'}
+          </button>
+        )}
       </div>
 
       {/* Add form */}
-      {showForm && (
+      {canManage && showForm && (
         <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '16px', marginBottom: '10px' }}>
           <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -176,17 +174,19 @@ export default function ContactsManager({
               <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{contact.name}</div>
               <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{contact.email}</div>
             </div>
-            <button
-              onClick={() => handleRemove(contact)}
-              disabled={removing === contact.id}
-              style={{
-                fontSize: '12px', padding: '4px 10px', borderRadius: '6px',
-                border: '0.5px solid var(--border-default)', background: 'var(--bg-primary)',
-                color: 'var(--danger-text)', cursor: removing === contact.id ? 'wait' : 'pointer',
-              }}
-            >
-              {removing === contact.id ? '…' : 'Remove'}
-            </button>
+            {canManage && (
+              <button
+                onClick={() => handleRemove(contact)}
+                disabled={removing === contact.id}
+                style={{
+                  fontSize: '12px', padding: '4px 10px', borderRadius: '6px',
+                  border: '0.5px solid var(--border-default)', background: 'var(--bg-primary)',
+                  color: 'var(--danger-text)', cursor: removing === contact.id ? 'wait' : 'pointer',
+                }}
+              >
+                {removing === contact.id ? '…' : 'Remove'}
+              </button>
+            )}
           </div>
         ))}
 

@@ -60,6 +60,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
 
   const projects = (client.projects as any[]) ?? []
   const canCreateProject = me?.role === 'admin' || me?.role === 'manager'
+  const isAdmin = me?.role === 'admin'
 
   return (
     <div>
@@ -164,14 +165,24 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
         <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
           Access
         </div>
-        <ClientAccessManager
-          clientId={params.clientId}
-          managers={(managers ?? []) as any}
-          currentManagerId={client.manager_id}
-          loginId={client.login_id}
-          mustChangePassword={client.must_change_password}
-          lastLoginAt={client.last_login_at}
-        />
+        {isAdmin ? (
+          <ClientAccessManager
+            clientId={params.clientId}
+            managers={(managers ?? []) as any}
+            currentManagerId={client.manager_id}
+            loginId={client.login_id}
+            mustChangePassword={client.must_change_password}
+            lastLoginAt={client.last_login_at}
+          />
+        ) : (
+          <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '18px', fontSize: '13px', color: 'var(--text-secondary)' }}>
+            <div style={{ marginBottom: '6px' }}>
+              Manager: {(managers ?? []).find((m: any) => m.id === client.manager_id)?.name ?? 'None assigned'}
+            </div>
+            <div>Portal login: {client.login_id ? 'Active' : 'Not set up'}</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '8px' }}>Only admins can change manager assignment or portal credentials.</div>
+          </div>
+        )}
       </div>
 
       {/* Contacts — managed by client component */}
@@ -179,30 +190,33 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
         clientId={params.clientId}
         contacts={(activeContacts ?? []) as ClientContact[]}
         formerContacts={(formerContacts ?? []) as ClientContact[]}
+        canManage={isAdmin}
       />
 
       {/* Danger zone */}
-      <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '0.5px solid var(--border-default)' }}>
-        <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
-          Danger zone
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px' }}>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>Delete this client</div>
-            <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
-              Permanently removes {client.name} and everything under them.
-            </div>
+      {isAdmin && (
+        <div style={{ marginTop: '32px', paddingTop: '20px', borderTop: '0.5px solid var(--border-default)' }}>
+          <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+            Danger zone
           </div>
-          <DeleteConfirmButton
-            entityLabel="client"
-            confirmText={client.name}
-            cascadeWarning={`This permanently deletes ${projects.length} project(s), ${ticketCount ?? 0} ticket(s), and all contacts, milestones, decisions, and documents for ${client.name}.`}
-            action={deleteClient}
-            entityId={client.id}
-            redirectTo="/dashboard/clients"
-          />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px' }}>
+            <div>
+              <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>Delete this client</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)', marginTop: '2px' }}>
+                Permanently removes {client.name} and everything under them.
+              </div>
+            </div>
+            <DeleteConfirmButton
+              entityLabel="client"
+              confirmText={client.name}
+              cascadeWarning={`This permanently deletes ${projects.length} project(s), ${ticketCount ?? 0} ticket(s), and all contacts, milestones, decisions, and documents for ${client.name}.`}
+              action={deleteClient}
+              entityId={client.id}
+              redirectTo="/dashboard/clients"
+            />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

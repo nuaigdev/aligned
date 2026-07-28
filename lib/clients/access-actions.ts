@@ -2,12 +2,16 @@
 
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { requireTeamRole } from '@/lib/auth/team-role-guard'
 import { hashPassword, generateTempPassword } from '@/lib/auth/client-session'
 
 export async function setClientManager(
   clientId: string,
   managerId: string | null
 ): Promise<{ ok: true } | { error: string }> {
+  const check = await requireTeamRole(['admin'])
+  if ('error' in check) return check
+
   const supabase = createSupabaseServerClient()
   const { error } = await supabase.from('clients').update({ manager_id: managerId }).eq('id', clientId)
   if (error) return { error: error.message }
@@ -26,6 +30,8 @@ export async function issueClientCredentials(
   clientId: string,
   loginId: string
 ): Promise<{ password: string } | { error: string }> {
+  const check = await requireTeamRole(['admin'])
+  if ('error' in check) return check
   if (!loginId.trim()) return { error: 'Choose a login ID.' }
 
   const supabase = createSupabaseServerClient()
@@ -51,6 +57,9 @@ export async function issueClientCredentials(
 }
 
 export async function revokeClientCredentials(clientId: string): Promise<{ ok: true } | { error: string }> {
+  const check = await requireTeamRole(['admin'])
+  if ('error' in check) return check
+
   const supabase = createSupabaseServerClient()
   const { error } = await supabase
     .from('clients')
