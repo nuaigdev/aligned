@@ -1,8 +1,8 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { createTicketNotifications, getActorName } from '@/lib/notifications/create'
+import { createSupabaseServerClient, createServiceRoleClient } from '@/lib/supabase/server'
+import { createTicketNotifications, getActorName, createClientNotification } from '@/lib/notifications/create'
 import { sendTicketReplyEmail, sendTicketResolvedEmail } from '@/lib/email/index'
 import { ticketClientCode } from '@/lib/utils'
 import type { CreateTicketInput, TicketStatus, TicketPriority } from '@/types'
@@ -125,6 +125,11 @@ export async function updateTicket(
         const emails = await activeClientContactEmails(supabase, ticket.client_id)
         const clientCode = (ticket.clients as any)?.slug ? ticketClientCode((ticket.clients as any).slug) : undefined
         await sendTicketResolvedEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, clientCode })
+        await createClientNotification(
+          createServiceRoleClient(), ticket.client_id, 'ticket_resolved',
+          'Ticket resolved', ticket.title,
+          `/portal/tickets/${ticketId}`
+        )
       }
     }
   }
@@ -235,6 +240,11 @@ export async function postTicketComment(
       const emails = await activeClientContactEmails(supabase, ticket.client_id)
       const clientCode = (ticket.clients as any)?.slug ? ticketClientCode((ticket.clients as any).slug) : undefined
       await sendTicketReplyEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor, clientCode })
+      await createClientNotification(
+        createServiceRoleClient(), ticket.client_id, 'ticket_replied',
+        `New reply on ${ticket.title}`, body.trim().slice(0, 140),
+        `/portal/tickets/${ticketId}`
+      )
     }
   }
 

@@ -1,7 +1,8 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getSessionProject } from '@/lib/portal/session-guard'
-import { formatDate, formatDecisionRef, formatFileSize, maskEmail } from '@/lib/utils'
-import PortalDecisionActions from '../decisions/PortalDecisionActions'
+import { formatDate, formatFileSize } from '@/lib/utils'
+import PortalDecisionCard from '../decisions/PortalDecisionCard'
+import PortalMilestoneActions from './PortalMilestoneActions'
 
 const STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
   not_started:      { label: 'Not started',       bg: 'var(--bg-tertiary)',  color: 'var(--text-tertiary)' },
@@ -19,15 +20,6 @@ const DOT_COLOR: Record<string, string> = {
   reopened:         '#993C1D',
 }
 
-const DECISION_STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-  draft:            { label: 'Draft',            bg: 'var(--bg-tertiary)',  color: 'var(--text-tertiary)' },
-  pending_approval: { label: 'Awaiting your review', bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
-  approved:         { label: 'Approved',         bg: 'var(--success-bg)',   color: 'var(--success-text)' },
-  amended:          { label: 'Amended',          bg: 'var(--info-bg)',      color: 'var(--info-text)' },
-  declined:         { label: 'Declined',         bg: 'var(--danger-bg)',    color: 'var(--danger-text)' },
-  on_hold:          { label: 'On hold',          bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
-}
-
 const FILE_ICON: Record<string, string> = {
   pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊',
   ppt: '📑', pptx: '📑', png: '🖼', jpg: '🖼', jpeg: '🖼', gif: '🖼', webp: '🖼', zip: '📦', csv: '📊',
@@ -39,14 +31,8 @@ export default async function PortalMilestonesPage({ params }: { params: { proje
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()
 
-  const [{ data: milestones }, { data: pendingApprovals }, { data: decisions }, { data: documents }, { data: contacts }] = await Promise.all([
+  const [{ data: milestones }, { data: decisions }, { data: documents }, { data: contacts }] = await Promise.all([
     supabase.from('milestones').select('*').eq('project_id', project.id).order('sort_order').order('created_at'),
-    supabase
-      .from('approval_links')
-      .select('id, target_id, recipient_email, recipient_name')
-      .eq('project_id', project.id)
-      .eq('target_type', 'milestone')
-      .eq('status', 'pending'),
     supabase.from('decisions').select('*').eq('project_id', project.id).order('ref_number', { ascending: false }),
     supabase.from('documents').select('*').eq('project_id', project.id).order('created_at', { ascending: false }),
     supabase.from('client_contacts').select('id, name').eq('client_id', project.client_id).eq('is_active', true).is('project_id', null).order('name'),
@@ -96,30 +82,8 @@ export default async function PortalMilestonesPage({ params }: { params: { proje
   }
 
   function renderDecisionCard(dec: NonNullable<typeof decisions>[number]) {
-    const cfg = DECISION_STATUS_CONFIG[dec.status] ?? DECISION_STATUS_CONFIG.draft
-    const canAct = dec.status === 'pending_approval' || dec.status === 'on_hold'
     return (
-      <div key={dec.id} style={{ background: 'var(--bg-tertiary)', border: canAct ? '0.5px solid #D6B97B' : '0.5px solid var(--border-default)', borderRadius: '8px', padding: '10px 12px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
-            <span style={{ fontSize: '10px', color: 'var(--text-tertiary)', fontFamily: 'monospace', flexShrink: 0 }}>{formatDecisionRef(dec.ref_number)}</span>
-            <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{dec.title}</span>
-          </div>
-          <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: cfg.bg, color: cfg.color, fontWeight: 500, flexShrink: 0 }}>{cfg.label}</span>
-        </div>
-        {dec.description && <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '5px 0 0', lineHeight: 1.5 }}>{dec.description}</p>}
-        {dec.status === 'approved' && dec.signed_by_name && (
-          <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--success-text)' }}>✓ Approved by {dec.signed_by_name} · {formatDate(dec.signed_at)}</div>
-        )}
-        {dec.status === 'declined' && dec.client_decided_by_name && (
-          <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--danger-text)' }}>✕ Declined by {dec.client_decided_by_name} · {formatDate(dec.decided_at)}</div>
-        )}
-        {canAct && (
-          <div style={{ marginTop: '8px' }}>
-            <PortalDecisionActions decisionId={dec.id} contacts={contacts ?? []} canResolveFromHold={dec.status === 'on_hold'} />
-          </div>
-        )}
-      </div>
+      <PortalDecisionCard key={dec.id} decision={dec} contacts={contacts ?? []} compact />
     )
   }
 
@@ -154,7 +118,6 @@ export default async function PortalMilestonesPage({ params }: { params: { proje
           const isAwaiting = ms.status === 'awaiting_signoff'
           const isCompleted = ms.status === 'completed'
 
-          const pendingLink = pendingApprovals?.find(a => a.target_id === ms.id)
           const signoff = milestoneSignoffs?.find(s => s.milestone_id === ms.id)
           const statusCfg = STATUS_CONFIG[ms.status] ?? STATUS_CONFIG.not_started
           const dotColor = DOT_COLOR[ms.status] ?? '#B4B2A9'
@@ -202,13 +165,9 @@ export default async function PortalMilestonesPage({ params }: { params: { proje
                       <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '4px 0 0', lineHeight: 1.5 }}>{ms.description}</p>
                     )}
 
-                    {isAwaiting && (
-                      <div style={{ marginTop: '8px', padding: '7px 10px', background: 'var(--warning-bg)', borderRadius: '7px', fontSize: '12px', color: 'var(--warning-text)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <span>✉</span>
-                        <span>
-                          Awaiting signature · check your email
-                          {pendingLink && <span> · Sent to {maskEmail(pendingLink.recipient_email)}</span>}
-                        </span>
+                    {isAwaiting && ms.type === 'client_gate' && (
+                      <div style={{ marginTop: '10px' }}>
+                        <PortalMilestoneActions milestoneId={ms.id} contacts={contacts ?? []} />
                       </div>
                     )}
 

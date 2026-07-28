@@ -42,6 +42,14 @@ export type NotificationType =
   | 'ticket_commented'
   | 'ticket_mentioned'
   | 'ticket_updated'
+  | 'decision_decided'
+  | 'milestone_decided'
+
+export type ClientNotificationType =
+  | 'ticket_replied'
+  | 'ticket_resolved'
+  | 'decision_pending'
+  | 'milestone_signoff_pending'
 
 // ============================================================
 // DATABASE ROW TYPES
@@ -285,7 +293,9 @@ export const TICKET_PRIORITY_LABELS: Record<TicketPriority, string> = {
 }
 
 // ============================================================
-// NOTIFICATIONS (team-side only — clients get email instead)
+// NOTIFICATIONS — team side (real Supabase Auth sessions) and
+// client side (client_notifications, scoped by client_id since the
+// portal login is shared per company — see migration 032)
 // ============================================================
 
 export interface AppNotification {
@@ -295,6 +305,18 @@ export interface AppNotification {
   title: string
   body: string | null
   ticket_id: string | null
+  link_path: string | null
+  is_read: boolean
+  created_at: string
+}
+
+export interface ClientNotificationRow {
+  id: string
+  client_id: string
+  type: ClientNotificationType
+  title: string
+  body: string | null
+  link_path: string | null
   is_read: boolean
   created_at: string
 }

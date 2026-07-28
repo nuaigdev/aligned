@@ -19,13 +19,6 @@ export default async function MilestonesPage({ params }: { params: { projectId: 
   if (!project) notFound()
   const canManage = me?.role === 'admin' || me?.role === 'manager'
 
-  const { data: contacts } = await supabase
-    .from('client_contacts')
-    .select('id, name, email')
-    .eq('client_id', (project as any).client_id)
-    .eq('is_active', true)
-    .order('name')
-
   return (
     <div>
       <div style={{ marginBottom: '24px' }}>
@@ -46,7 +39,6 @@ export default async function MilestonesPage({ params }: { params: { projectId: 
       <MilestonesPanel
         projectId={params.projectId}
         initialMilestones={(milestones ?? []) as Milestone[]}
-        contacts={(contacts ?? []) as Array<{ id: string; name: string; email: string }>}
         canManage={canManage}
       />
     </div>

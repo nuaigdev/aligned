@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { formatDate } from '@/lib/utils'
+import { sendMilestoneForSignoff } from '@/lib/milestones/actions'
 import type { Milestone, MilestoneType, MilestoneStatus } from '@/types'
 
 const TYPE_CONFIG: Record<MilestoneType, { label: string; bg: string; color: string }> = {
@@ -40,17 +41,13 @@ const inputStyle: React.CSSProperties = {
 
 const emptyForm = { title: '', type: 'internal' as MilestoneType, phase: '', due_date: '', description: '', percentage: '' }
 
-interface Contact { id: string; name: string; email: string }
-
 export default function MilestonesPanel({
   projectId,
   initialMilestones,
-  contacts,
   canManage,
 }: {
   projectId: string
   initialMilestones: Milestone[]
-  contacts: Contact[]
   canManage: boolean
 }) {
   const router = useRouter()
@@ -60,11 +57,7 @@ export default function MilestonesPanel({
   const [form, setForm] = useState(emptyForm)
   const [addError, setAddError] = useState<string | null>(null)
   const [updatingId, setUpdatingId] = useState<string | null>(null)
-
-  const [sendModal, setSendModal] = useState<{ milestone: Milestone } | null>(null)
-  const [selectedContacts, setSelectedContacts] = useState<Set<string>>(new Set())
-  const [sending, setSending] = useState(false)
-  const [sendError, setSendError] = useState<string | null>(null)
+  const [sendingId, setSendingId] = useState<string | null>(null)
 
   const [editModal, setEditModal] = useState<Milestone | null>(null)
   const [editForm, setEditForm] = useState(emptyForm)
@@ -178,61 +171,18 @@ export default function MilestonesPanel({
     router.refresh()
   }
 
-  function openSendModal(milestone: Milestone) {
-    setSelectedContacts(new Set())
-    setSendError(null)
-    setSendModal({ milestone })
-  }
-
-  function closeSendModal() {
-    setSendModal(null)
-    setSendError(null)
-    setSelectedContacts(new Set())
-  }
-
-  function toggleContact(id: string) {
-    setSelectedContacts(prev => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  async function handleSend() {
-    if (!sendModal || selectedContacts.size === 0) return
-    setSending(true)
-    setSendError(null)
-
-    const recipients = contacts
-      .filter(c => selectedContacts.has(c.id))
-      .map(c => ({ name: c.name, email: c.email }))
-
-    try {
-      const res = await fetch('/api/approvals/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          project_id: projectId,
-          target_type: 'milestone',
-          target_id: sendModal.milestone.id,
-          recipients,
-        }),
-      })
-      const json = await res.json()
-      if (!res.ok) {
-        setSendError(json.error || 'Failed to send')
-        setSending(false)
-        return
-      }
-    } catch {
-      setSendError('Network error — please try again')
-      setSending(false)
+  // No recipient picker, no email — the client sees this as a portal
+  // notification the moment it's sent (see migration 030's write-up,
+  // applied to milestones the same way it was to decisions).
+  async function handleSendForSignoff(id: string) {
+    setSendingId(id)
+    const result = await sendMilestoneForSignoff(id)
+    setSendingId(null)
+    if ('error' in result) {
+      toast.error(result.error)
       return
     }
-
-    setSending(false)
-    closeSendModal()
+    toast.success('Sent to the client for sign-off')
     router.refresh()
   }
 
@@ -324,6 +274,7 @@ export default function MilestonesPanel({
           const status = STATUS_CONFIG[m.status] ?? STATUS_CONFIG.not_started
           const nextStatuses = NEXT_STATUSES[m.status] ?? []
           const isUpdating = updatingId === m.id
+          const isSending = sendingId === m.id
           const canSend = m.type === 'client_gate' && SEND_ELIGIBLE.includes(m.status)
 
           return (
@@ -342,6 +293,11 @@ export default function MilestonesPanel({
                     {m.completed_at && <span style={{ fontSize: '11px', color: 'var(--success-text)' }}>Completed {formatDate(m.completed_at)}</span>}
                   </div>
                   {m.description && <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '7px 0 0', lineHeight: 1.5 }}>{m.description}</p>}
+                  {m.delay_owner === 'client' && m.delay_reason && (
+                    <div style={{ marginTop: '8px', padding: '7px 10px', background: 'var(--warning-bg)', borderRadius: '7px', fontSize: '12px', color: 'var(--warning-text)' }}>
+                      ⚠ Concern from client: "{m.delay_reason}"
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px', flexShrink: 0 }}>
@@ -363,14 +319,15 @@ export default function MilestonesPanel({
                     )}
                     {canManage && canSend && (
                       <button
-                        onClick={() => openSendModal(m)}
+                        disabled={isSending}
+                        onClick={() => handleSendForSignoff(m.id)}
                         style={{
                           fontSize: '11px', padding: '3px 9px', borderRadius: '6px',
                           border: '0.5px solid #EA580C', background: 'var(--bg-primary)',
-                          color: '#EA580C', cursor: 'pointer', fontWeight: 500,
+                          color: '#EA580C', cursor: isSending ? 'not-allowed' : 'pointer', fontWeight: 500,
                         }}
                       >
-                        Send for sign-off
+                        {isSending ? 'Sending…' : 'Send for sign-off'}
                       </button>
                     )}
                     {canManage && nextStatuses.length > 0 && nextStatuses.map(s => (
@@ -473,81 +430,6 @@ export default function MilestonesPanel({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Send for sign-off modal */}
-      {sendModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
-          onClick={e => { if (e.target === e.currentTarget) closeSendModal() }}
-        >
-          <div style={{ background: 'var(--bg-primary)', borderRadius: '12px', padding: '24px', width: '440px', maxWidth: '90vw' }}>
-            <div style={{ marginBottom: '16px' }}>
-              <div style={{ fontSize: '16px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '4px' }}>Send for sign-off</div>
-              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>{sendModal.milestone.title}</div>
-            </div>
-
-            {contacts.length === 0 ? (
-              <div style={{ fontSize: '13px', color: 'var(--text-tertiary)', padding: '12px', background: 'var(--bg-tertiary)', borderRadius: '8px', marginBottom: '16px' }}>
-                No contacts configured for this client. Add contacts on the client page.
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
-                <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>Select recipients</div>
-                {contacts.map(c => (
-                  <label
-                    key={c.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '10px',
-                      padding: '9px 12px', background: selectedContacts.has(c.id) ? 'var(--brand-50)' : 'var(--bg-secondary)',
-                      border: selectedContacts.has(c.id) ? '0.5px solid #FED7AA' : '0.5px solid var(--border-default)',
-                      borderRadius: '8px', cursor: 'pointer',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedContacts.has(c.id)}
-                      onChange={() => toggleContact(c.id)}
-                      style={{ accentColor: '#EA580C', width: '14px', height: '14px', cursor: 'pointer' }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>{c.name}</div>
-                      <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>{c.email}</div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            )}
-
-            {sendError && (
-              <div style={{ fontSize: '12px', color: 'var(--danger-text)', background: 'var(--danger-bg)', borderRadius: '6px', padding: '8px 10px', marginBottom: '14px' }}>
-                {sendError}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-              <button
-                onClick={closeSendModal}
-                style={{ padding: '7px 14px', border: '0.5px solid var(--border-medium)', borderRadius: '7px', fontSize: '13px', color: 'var(--text-secondary)', background: 'var(--bg-primary)', cursor: 'pointer' }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSend}
-                disabled={sending || selectedContacts.size === 0 || contacts.length === 0}
-                style={{
-                  padding: '7px 16px',
-                  background: sending || selectedContacts.size === 0 || contacts.length === 0 ? '#FED7AA' : '#EA580C',
-                  color: '#fff', border: 'none', borderRadius: '7px',
-                  fontSize: '13px', fontWeight: 500,
-                  cursor: sending || selectedContacts.size === 0 || contacts.length === 0 ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {sending ? 'Sending…' : `Send to ${selectedContacts.size > 0 ? selectedContacts.size : ''} ${selectedContacts.size === 1 ? 'recipient' : 'recipients'}`.trim()}
-              </button>
-            </div>
           </div>
         </div>
       )}

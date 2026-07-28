@@ -57,7 +57,7 @@ export default function NotificationBell() {
                 notifications.map(n => (
                   <Link
                     key={n.id}
-                    href={n.ticket_id ? `/dashboard/tickets/${n.ticket_id}` : '/dashboard/tickets'}
+                    href={n.link_path ?? (n.ticket_id ? `/dashboard/tickets/${n.ticket_id}` : '/dashboard/tickets')}
                     onClick={() => { if (!n.is_read) markAsRead(n.id); setOpen(false) }}
                     style={{
                       display: 'block', padding: '10px 12px', textDecoration: 'none',

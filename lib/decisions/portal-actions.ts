@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { requireClientSession } from '@/lib/portal/session-guard'
+import { createTeamNotifications } from '@/lib/notifications/create'
 
 type DecisionAction = 'approve' | 'decline' | 'hold'
 
@@ -25,7 +26,7 @@ export async function decidePortalDecision(input: {
 
   const { data: decision } = await supabase
     .from('decisions')
-    .select('id, project_id, status, projects(client_id)')
+    .select('id, project_id, title, status, projects(client_id, clients(manager_id))')
     .eq('id', input.decisionId)
     .maybeSingle()
 
@@ -56,6 +57,17 @@ export async function decidePortalDecision(input: {
 
   const { error } = await supabase.from('decisions').update(patch).eq('id', input.decisionId)
   if (error) return { error: error.message }
+
+  const managerId = (decision.projects as any)?.clients?.manager_id
+  if (managerId) {
+    const verb = input.action === 'approve' ? 'approved' : input.action === 'decline' ? 'declined' : 'put on hold'
+    await createTeamNotifications(
+      supabase, [managerId], null, 'decision_decided',
+      `Decision ${verb}`,
+      `${input.contactName.trim()} ${verb} "${decision.title}"`,
+      `/dashboard/projects/${decision.project_id}/decisions`
+    )
+  }
 
   revalidatePath(`/portal/projects/${decision.project_id}/decisions`)
   revalidatePath(`/portal/projects/${decision.project_id}/milestones`)
