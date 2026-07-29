@@ -7,7 +7,7 @@ import { Send, Pencil, Trash2, X, Check, Lock, Eye } from 'lucide-react'
 import { getInitials, formatDateTime } from '@/lib/utils'
 import { postTicketComment, editTicketComment, deleteTicketComment } from '@/lib/tickets/team-actions'
 import { createBrowserClient } from '@/lib/supabase/client'
-import type { TicketComment, TeamMember } from '@/types'
+import type { TicketComment, TeamMember, TicketType } from '@/types'
 
 interface EnrichedComment extends TicketComment {
   author_member?: TeamMember
@@ -19,11 +19,13 @@ export default function TicketComments({
   initialComments,
   candidateMentions,
   currentTeamMemberId,
+  ticketType,
 }: {
   ticketId: string
   initialComments: EnrichedComment[]
   candidateMentions: TeamMember[]
   currentTeamMemberId: string
+  ticketType: TicketType
 }) {
   const [comments, setComments] = useState(initialComments)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -116,10 +118,16 @@ export default function TicketComments({
         Comments{comments.length > 0 ? ` (${comments.length})` : ''}
       </div>
 
+      {ticketType === 'internal' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px', color: 'var(--text-tertiary)', background: 'var(--bg-tertiary)', borderRadius: '7px', padding: '7px 10px', marginBottom: '12px' }}>
+          <Lock size={11} /> Internal ticket — the client can't see this ticket or any comments on it.
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: '10px', marginBottom: '18px' }}>
         <Avatar name="You" />
         <div style={{ flex: 1 }}>
-          <Composer candidateMentions={candidateMentions} submitLabel="Comment" resetAfterSubmit onSubmit={handlePost} />
+          <Composer candidateMentions={candidateMentions} submitLabel="Comment" resetAfterSubmit onSubmit={handlePost} allowClientVisible={ticketType !== 'internal'} />
         </div>
       </div>
 
@@ -164,6 +172,7 @@ export default function TicketComments({
                         initialValue={c.body}
                         initialVisibleToClient={c.visible_to_client}
                         submitLabel="Save"
+                        allowClientVisible={ticketType !== 'internal'}
                         onCancel={() => setEditingId(null)}
                         onSubmit={async (body, ids, visible) => {
                           const ok = await handleEdit(c.id, body, ids, visible)
@@ -198,6 +207,7 @@ function Composer({
   initialVisibleToClient = false,
   submitLabel,
   resetAfterSubmit,
+  allowClientVisible = true,
   onCancel,
   onSubmit,
 }: {
@@ -206,11 +216,12 @@ function Composer({
   initialVisibleToClient?: boolean
   submitLabel: string
   resetAfterSubmit?: boolean
+  allowClientVisible?: boolean
   onCancel?: () => void
   onSubmit: (body: string, mentionedIds: string[], visibleToClient: boolean) => Promise<boolean>
 }) {
   const [text, setText] = useState(initialValue)
-  const [visibleToClient, setVisibleToClient] = useState(initialVisibleToClient)
+  const [visibleToClient, setVisibleToClient] = useState(allowClientVisible && initialVisibleToClient)
   const [trigger, setTrigger] = useState<{ query: string; start: number } | null>(null)
   const [busy, setBusy] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -252,33 +263,36 @@ function Composer({
     <div style={{ position: 'relative' }}>
       {/* Explicit internal-note vs reply-to-client toggle — internal by
           default, so a comment never reaches the client unless someone
-          deliberately says so. */}
-      <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-tertiary)', borderRadius: '7px', padding: '3px', marginBottom: '8px', width: 'fit-content' }}>
-        <button
-          type="button"
-          onClick={() => setVisibleToClient(false)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '5px', border: 'none', cursor: 'pointer',
-            fontSize: '11px', fontWeight: 500,
-            background: !visibleToClient ? 'var(--bg-primary)' : 'transparent',
-            color: !visibleToClient ? 'var(--text-primary)' : 'var(--text-tertiary)',
-          }}
-        >
-          <Lock size={11} /> Internal note
-        </button>
-        <button
-          type="button"
-          onClick={() => setVisibleToClient(true)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '5px', border: 'none', cursor: 'pointer',
-            fontSize: '11px', fontWeight: 500,
-            background: visibleToClient ? 'var(--info-bg)' : 'transparent',
-            color: visibleToClient ? 'var(--info-text)' : 'var(--text-tertiary)',
-          }}
-        >
-          <Eye size={11} /> Reply to client
-        </button>
-      </div>
+          deliberately says so. Not offered at all on an internal ticket —
+          there's no client to reply to. */}
+      {allowClientVisible && (
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--bg-tertiary)', borderRadius: '7px', padding: '3px', marginBottom: '8px', width: 'fit-content' }}>
+          <button
+            type="button"
+            onClick={() => setVisibleToClient(false)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+              fontSize: '11px', fontWeight: 500,
+              background: !visibleToClient ? 'var(--bg-primary)' : 'transparent',
+              color: !visibleToClient ? 'var(--text-primary)' : 'var(--text-tertiary)',
+            }}
+          >
+            <Lock size={11} /> Internal note
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisibleToClient(true)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px', padding: '5px 11px', borderRadius: '5px', border: 'none', cursor: 'pointer',
+              fontSize: '11px', fontWeight: 500,
+              background: visibleToClient ? 'var(--info-bg)' : 'transparent',
+              color: visibleToClient ? 'var(--info-text)' : 'var(--text-tertiary)',
+            }}
+          >
+            <Eye size={11} /> Reply to client
+          </button>
+        </div>
+      )}
       {visibleToClient && (
         <p style={{ fontSize: '11px', color: 'var(--info-text)', margin: '0 0 8px', lineHeight: 1.4 }}>
           The client will see this comment on their portal and get emailed about it.

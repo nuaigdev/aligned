@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import { formatTicketRef, ticketClientCode, TICKET_PRIORITY_COLOR, formatRelative, getInitials } from '@/lib/utils'
-import { MessageSquare, CalendarClock } from 'lucide-react'
+import { MessageSquare, CalendarClock, Lock } from 'lucide-react'
 import { QuickDropdown, DropdownItem, PillTrigger, Dot } from '@/components/dashboard/QuickDropdown'
 import { TICKET_PRIORITY_LABELS } from '@/types'
 import type { Ticket, TeamMember, TicketPriority } from '@/types'
@@ -69,6 +69,11 @@ export default function TicketCard({
         </div>
 
         <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px', alignItems: 'center' }}>
+          {ticket.ticket_type === 'internal' && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500 }}>
+              <Lock size={9} /> Internal
+            </span>
+          )}
           {onPriorityChange ? (
             <QuickDropdown
               open={priorityOpen}

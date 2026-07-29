@@ -8,7 +8,7 @@ import { Plus, X } from 'lucide-react'
 import { updateTicket, setTicketAssignees } from '@/lib/tickets/team-actions'
 import { getInitials, formatDate, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import { TICKET_LANES, TICKET_STATUS_LABELS, TICKET_PRIORITY_LABELS } from '@/types'
-import type { Ticket, TeamMember, TicketPriority, TicketStatus } from '@/types'
+import type { Ticket, TeamMember, TicketPriority, TicketStatus, TicketType } from '@/types'
 import { QuickDropdown, DropdownItem, PillTrigger, Dot } from '@/components/dashboard/QuickDropdown'
 
 const CATEGORY_OPTIONS = ['general', 'bug', 'feature_request', 'question', 'billing']
@@ -35,6 +35,7 @@ export default function TicketPropertiesPanel({
   const [status, setStatus] = useState<TicketStatus>(ticket.status)
   const [priority, setPriority] = useState<TicketPriority>(ticket.priority)
   const [category, setCategory] = useState(ticket.category)
+  const [ticketType, setTicketType] = useState<TicketType>(ticket.ticket_type)
   const [projectId, setProjectId] = useState(ticket.project_id)
   const [dueDate, setDueDate] = useState(ticket.due_date ?? '')
   const [blockedOn, setBlockedOn] = useState(ticket.blocked_on)
@@ -70,6 +71,15 @@ export default function TicketPropertiesPanel({
     setCategory(next)
     setOpenSection(null)
     if (!(await patch({ category: next }, `Category set to ${next.replace('_', ' ')}`))) setCategory(prev)
+  }
+
+  async function handleTicketTypeChange(next: TicketType) {
+    const prev = ticketType
+    setTicketType(next)
+    setOpenSection(null)
+    const ok = await patch({ ticket_type: next }, next === 'internal' ? 'Marked internal — hidden from the client' : 'Marked as a client ticket')
+    if (!ok) setTicketType(prev)
+    else router.refresh() // TicketComments' internal-only toggle is server-rendered from this
   }
 
   async function handleProjectChange(next: string | null) {
@@ -128,6 +138,27 @@ export default function TicketPropertiesPanel({
               <Dot color={TICKET_STATUS_CONFIG[s].color} /> {TICKET_STATUS_LABELS[s]}
             </DropdownItem>
           ))}
+        </QuickDropdown>
+      </PropertyRow>
+
+      <PropertyRow label="Type">
+        <QuickDropdown
+          open={openSection === 'type'}
+          onToggle={() => setOpenSection(o => (o === 'type' ? null : 'type'))}
+          trigger={
+            <PillTrigger
+              color={ticketType === 'internal' ? 'var(--text-secondary)' : 'var(--brand-600)'}
+              bg={ticketType === 'internal' ? 'var(--bg-tertiary)' : 'var(--brand-50)'}
+              label={ticketType === 'internal' ? 'Internal' : 'Client'}
+            />
+          }
+        >
+          <DropdownItem onClick={() => handleTicketTypeChange('client')} active={ticketType === 'client'}>
+            Client ticket
+          </DropdownItem>
+          <DropdownItem onClick={() => handleTicketTypeChange('internal')} active={ticketType === 'internal'}>
+            Internal ticket
+          </DropdownItem>
         </QuickDropdown>
       </PropertyRow>
 

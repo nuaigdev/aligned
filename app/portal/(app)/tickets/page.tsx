@@ -15,6 +15,7 @@ export default async function PortalTicketsPage({ searchParams }: { searchParams
     .from('tickets')
     .select('*, ticket_comments(count)')
     .eq('client_id', client.id)
+    .eq('ticket_type', 'client')
     .order('updated_at', { ascending: false })
 
   const filterStatus = searchParams.status

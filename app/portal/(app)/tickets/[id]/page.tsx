@@ -26,7 +26,7 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
     .eq('id', params.id)
     .maybeSingle()
 
-  if (!ticket || ticket.client_id !== session.clientId) notFound()
+  if (!ticket || ticket.client_id !== session.clientId || ticket.ticket_type !== 'client') notFound()
 
   const [{ data: comments }, { data: contacts }, { data: teamMembers }, { data: documents }] = await Promise.all([
     // Only the client's own comments, or team comments explicitly marked as

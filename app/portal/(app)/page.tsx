@@ -20,7 +20,8 @@ export default async function PortalHubPage() {
     supabase
       .from('tickets')
       .select('id, status')
-      .eq('client_id', client.id),
+      .eq('client_id', client.id)
+      .eq('ticket_type', 'client'),
   ])
 
   const ticketCounts = {

@@ -77,6 +77,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
             initialComments={comments}
             candidateMentions={candidatePool}
             currentTeamMemberId={user?.id ?? ''}
+            ticketType={ticket.ticket_type}
           />
         </div>
 

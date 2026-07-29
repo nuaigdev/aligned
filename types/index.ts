@@ -34,6 +34,10 @@ export type DocumentSharedBy = 'team' | 'client'
 // facing support, not internal work tracking.
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed'
 export type TicketPriority = 'low' | 'medium' | 'high' | 'urgent'
+// 'internal' tickets belong to a client_id like any other ticket, but are
+// never visible on that client's portal — raised by the team, about a
+// client, kept in-house. See migration 033.
+export type TicketType = 'client' | 'internal'
 export type TicketBlockedOn = 'client' | 'team'
 
 export type NotificationType =
@@ -228,6 +232,7 @@ export interface Ticket {
   title: string
   description: string | null
   category: string
+  ticket_type: TicketType
   status: TicketStatus
   priority: TicketPriority
   blocked_on: TicketBlockedOn | null
@@ -429,6 +434,7 @@ export interface CreateTicketInput {
   title: string
   description?: string
   category?: string
+  ticket_type?: TicketType
   priority?: TicketPriority
   due_date?: string
   assignee_ids?: string[]

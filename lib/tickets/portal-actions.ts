@@ -43,6 +43,9 @@ export async function createPortalTicket(input: {
       title: input.title.trim(),
       description: input.description?.trim() || null,
       category: input.category || 'general',
+      // Clients can only ever raise a client-visible ticket — 'internal' is
+      // exclusively a team-side classification (see migration 033).
+      ticket_type: 'client',
       priority: input.priority || 'medium',
       created_by_client_name: input.contact_name.trim(),
     })
@@ -105,11 +108,11 @@ export async function postPortalComment(input: {
 
   const { data: ticket } = await supabase
     .from('tickets')
-    .select('client_id, title, created_by_team_member_id, ticket_assignees(team_member_id), clients(manager_id)')
+    .select('client_id, title, ticket_type, created_by_team_member_id, ticket_assignees(team_member_id), clients(manager_id)')
     .eq('id', input.ticket_id)
     .maybeSingle()
 
-  if (!ticket || ticket.client_id !== session.clientId) {
+  if (!ticket || ticket.client_id !== session.clientId || ticket.ticket_type !== 'client') {
     return { error: 'That ticket is not part of your account.' }
   }
 
@@ -164,11 +167,16 @@ export async function postPortalComment(input: {
 async function assertOwnPortalComment(supabase: ReturnType<typeof createServiceRoleClient>, commentId: string, clientId: string) {
   const { data: comment } = await supabase
     .from('ticket_comments')
-    .select('ticket_id, created_by_client_name, tickets!inner(client_id)')
+    .select('ticket_id, created_by_client_name, tickets!inner(client_id, ticket_type)')
     .eq('id', commentId)
     .maybeSingle()
 
-  if (!comment || !comment.created_by_client_name || (comment.tickets as any)?.client_id !== clientId) {
+  if (
+    !comment
+    || !comment.created_by_client_name
+    || (comment.tickets as any)?.client_id !== clientId
+    || (comment.tickets as any)?.ticket_type !== 'client'
+  ) {
     return null
   }
   return comment
@@ -221,8 +229,8 @@ export async function getPortalTicketComments(ticketId: string): Promise<
   const session = await requireClientSession()
   const supabase = createServiceRoleClient()
 
-  const { data: ticket } = await supabase.from('tickets').select('client_id').eq('id', ticketId).maybeSingle()
-  if (!ticket || ticket.client_id !== session.clientId) return { error: 'That ticket is not part of your account.' }
+  const { data: ticket } = await supabase.from('tickets').select('client_id, ticket_type').eq('id', ticketId).maybeSingle()
+  if (!ticket || ticket.client_id !== session.clientId || ticket.ticket_type !== 'client') return { error: 'That ticket is not part of your account.' }
 
   const [{ data: comments }, { data: teamMembers }] = await Promise.all([
     supabase
@@ -255,8 +263,8 @@ export async function uploadPortalAttachment(formData: FormData): Promise<{ ok: 
   if (!ticketId || !file) return { error: 'Missing file.' }
 
   const supabase = createServiceRoleClient()
-  const { data: ticket } = await supabase.from('tickets').select('client_id, project_id').eq('id', ticketId).maybeSingle()
-  if (!ticket || ticket.client_id !== session.clientId) return { error: 'That ticket is not part of your account.' }
+  const { data: ticket } = await supabase.from('tickets').select('client_id, project_id, ticket_type').eq('id', ticketId).maybeSingle()
+  if (!ticket || ticket.client_id !== session.clientId || ticket.ticket_type !== 'client') return { error: 'That ticket is not part of your account.' }
 
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')

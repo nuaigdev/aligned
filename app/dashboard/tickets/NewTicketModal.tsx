@@ -7,7 +7,7 @@ import toast from 'react-hot-toast'
 import { Check, Search } from 'lucide-react'
 import { createTicket } from '@/lib/tickets/team-actions'
 import { getInitials } from '@/lib/utils'
-import type { Client, TeamMember, Project, TicketPriority } from '@/types'
+import type { Client, TeamMember, Project, TicketPriority, TicketType } from '@/types'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 11px',
@@ -35,6 +35,7 @@ export default function NewTicketModal({
   const [description, setDescription] = useState('')
   const [clientId, setClientId] = useState('')
   const [projectId, setProjectId] = useState('')
+  const [ticketType, setTicketType] = useState<TicketType>('client')
   const [priority, setPriority] = useState<TicketPriority>('medium')
   const [category, setCategory] = useState('general')
   const [dueDate, setDueDate] = useState('')
@@ -76,6 +77,7 @@ export default function NewTicketModal({
       title,
       description,
       category,
+      ticket_type: ticketType,
       priority,
       due_date: dueDate || undefined,
       assignee_ids: assigneeIds,
@@ -135,6 +137,39 @@ export default function NewTicketModal({
                 {clientProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Type</label>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                type="button" onClick={() => setTicketType('client')}
+                style={{
+                  flex: 1, padding: '7px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+                  border: ticketType === 'client' ? '1px solid var(--brand-600)' : '0.5px solid var(--border-medium)',
+                  background: ticketType === 'client' ? 'var(--brand-50)' : 'var(--bg-primary)',
+                  color: ticketType === 'client' ? 'var(--brand-600)' : 'var(--text-secondary)',
+                }}
+              >
+                Client ticket
+              </button>
+              <button
+                type="button" onClick={() => setTicketType('internal')}
+                style={{
+                  flex: 1, padding: '7px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, cursor: 'pointer',
+                  border: ticketType === 'internal' ? '1px solid var(--text-secondary)' : '0.5px solid var(--border-medium)',
+                  background: ticketType === 'internal' ? 'var(--bg-tertiary)' : 'var(--bg-primary)',
+                  color: ticketType === 'internal' ? 'var(--text-primary)' : 'var(--text-secondary)',
+                }}
+              >
+                Internal ticket
+              </button>
+            </div>
+            {ticketType === 'internal' && (
+              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '5px 0 0' }}>
+                Never shown to the client — only internal notes can be added, and the client can't see this ticket exists.
+              </p>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>

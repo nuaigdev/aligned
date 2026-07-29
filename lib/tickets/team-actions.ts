@@ -5,7 +5,7 @@ import { createSupabaseServerClient, createServiceRoleClient } from '@/lib/supab
 import { createTicketNotifications, getActorName, createClientNotification } from '@/lib/notifications/create'
 import { sendTicketReplyEmail, sendTicketResolvedEmail } from '@/lib/email/index'
 import { ticketClientCode } from '@/lib/utils'
-import type { CreateTicketInput, TicketStatus, TicketPriority } from '@/types'
+import type { CreateTicketInput, TicketStatus, TicketPriority, TicketType } from '@/types'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 async function currentTeamMemberId(): Promise<string | null> {
@@ -41,6 +41,7 @@ export async function createTicket(
       title: input.title.trim(),
       description: input.description?.trim() || null,
       category: input.category || 'general',
+      ticket_type: input.ticket_type || 'client',
       priority: input.priority || 'medium',
       due_date: input.due_date || null,
       created_by_team_member_id: teamMemberId,
@@ -93,6 +94,7 @@ export async function updateTicket(
     due_date: string | null
     blocked_on: 'client' | 'team' | null
     project_id: string | null
+    ticket_type: TicketType
   }>
 ): Promise<{ ok: true } | { error: string }> {
   const teamMemberId = await currentTeamMemberId()
@@ -202,6 +204,21 @@ export async function postTicketComment(
   if (!body.trim()) return { error: 'Comment cannot be empty.' }
 
   const supabase = createSupabaseServerClient()
+
+  const { data: ticket } = await supabase
+    .from('tickets')
+    .select('title, ref_number, client_id, ticket_type, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug)')
+    .eq('id', ticketId)
+    .maybeSingle()
+
+  if (!ticket) return { error: 'Ticket not found.' }
+
+  // Internal tickets never reach the client — force this regardless of what
+  // the composer sent (the DB trigger enforces the same rule on the row
+  // itself; this keeps the in-memory decision for email/notifications
+  // consistent with it rather than trusting a stale client-sent flag).
+  const effectiveVisibleToClient = ticket.ticket_type === 'internal' ? false : visibleToClient
+
   const { data: comment, error } = await supabase
     .from('ticket_comments')
     .insert({
@@ -209,20 +226,14 @@ export async function postTicketComment(
       body: body.trim(),
       mentioned_team_member_ids: mentionedTeamMemberIds,
       created_by_team_member_id: teamMemberId,
-      visible_to_client: visibleToClient,
+      visible_to_client: effectiveVisibleToClient,
     })
     .select('id')
     .single()
 
   if (error || !comment) return { error: error?.message || 'Could not post the comment.' }
 
-  const { data: ticket } = await supabase
-    .from('tickets')
-    .select('title, ref_number, client_id, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug)')
-    .eq('id', ticketId)
-    .maybeSingle()
-
-  if (ticket) {
+  {
     const actor = await getActorName(supabase, teamMemberId)
     const mentioned = new Set(mentionedTeamMemberIds)
     const audience = [
@@ -236,7 +247,7 @@ export async function postTicketComment(
     // Only a comment explicitly marked "reply to client" reaches the
     // client's inbox — an internal note must never leak to the client just
     // because we email on every team comment by default.
-    if (visibleToClient) {
+    if (effectiveVisibleToClient) {
       const emails = await activeClientContactEmails(supabase, ticket.client_id)
       const clientCode = (ticket.clients as any)?.slug ? ticketClientCode((ticket.clients as any).slug) : undefined
       await sendTicketReplyEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor, clientCode })
