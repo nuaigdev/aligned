@@ -83,12 +83,19 @@ Key departures from a plain kanban:
   people on the client's team (see below) — enforced by a filter trigger, not
   just the composer UI.
 
-**Visibility (migration 010, `can_view_ticket` / `is_on_client_team`).** Unlike
-every other table in this app (which grants full access to any authenticated
-team member), tickets are scoped: an `admin` sees everything; a `manager` and
-their direct reports (`team_members.manager_id`) see/act on tickets belonging
-to clients whose `manager_id` points at that manager; a ticket's creator and
-assignees can always see it regardless. **This is deliberately not extended to
+**Visibility (migration 037, `can_view_ticket` / `is_client_manager_or_admin`).**
+Unlike every other table in this app (which grants full access to any
+authenticated team member), tickets are scoped: an `admin` sees everything; a
+client's assigned `manager` sees every ticket belonging to that client (they're
+the one triaging/routing the whole queue); a ticket's creator and assignees can
+always see it regardless of role. **A plain `member` who neither raised nor is
+assigned to a ticket cannot see it**, even if they report to that client's
+manager — this was narrowed from the original migration-010 design (which gave
+every direct report of the manager blanket visibility) after that turned out to
+leak tickets to team members with nothing to do with them. `is_on_client_team()`
+still exists and is used unchanged for a *wider* pool elsewhere (who's eligible
+to be assigned, @mention filtering) — only default, unassigned visibility
+narrowed. **This is deliberately not extended to
 clients/projects/milestones/decisions/documents** — those keep the original
 "any team member, full access" policies. Don't copy the ticket RLS pattern
 onto those tables without discussing it first; it's a real behavior change.
