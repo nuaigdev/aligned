@@ -25,11 +25,13 @@ export default function TicketPropertiesPanel({
   candidatePool,
   initialAssigneeIds,
   clientProjects,
+  canAct = true,
 }: {
   ticket: Ticket
   candidatePool: TeamMember[]
   initialAssigneeIds: string[]
   clientProjects: Array<{ id: string; name: string }>
+  canAct?: boolean
 }) {
   const router = useRouter()
   const [status, setStatus] = useState<TicketStatus>(ticket.status)
@@ -126,19 +128,23 @@ export default function TicketPropertiesPanel({
   return (
     <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', overflow: 'hidden' }}>
       <PropertyRow label="Status">
-        <QuickDropdown
-          open={openSection === 'status'}
-          onToggle={() => setOpenSection(o => (o === 'status' ? null : 'status'))}
-          trigger={
-            <PillTrigger color={statusCfg.color} bg={statusCfg.bg} label={TICKET_STATUS_LABELS[status]} />
-          }
-        >
-          {TICKET_LANES.map(s => (
-            <DropdownItem key={s} onClick={() => handleStatusChange(s)} active={s === status}>
-              <Dot color={TICKET_STATUS_CONFIG[s].color} /> {TICKET_STATUS_LABELS[s]}
-            </DropdownItem>
-          ))}
-        </QuickDropdown>
+        {canAct ? (
+          <QuickDropdown
+            open={openSection === 'status'}
+            onToggle={() => setOpenSection(o => (o === 'status' ? null : 'status'))}
+            trigger={
+              <PillTrigger color={statusCfg.color} bg={statusCfg.bg} label={TICKET_STATUS_LABELS[status]} />
+            }
+          >
+            {TICKET_LANES.map(s => (
+              <DropdownItem key={s} onClick={() => handleStatusChange(s)} active={s === status}>
+                <Dot color={TICKET_STATUS_CONFIG[s].color} /> {TICKET_STATUS_LABELS[s]}
+              </DropdownItem>
+            ))}
+          </QuickDropdown>
+        ) : (
+          <PillTrigger color={statusCfg.color} bg={statusCfg.bg} label={TICKET_STATUS_LABELS[status]} chevron={false} />
+        )}
       </PropertyRow>
 
       <PropertyRow label="Type">
@@ -152,7 +158,7 @@ export default function TicketPropertiesPanel({
           >
             <Lock size={10} /> Client
           </span>
-        ) : (
+        ) : canAct ? (
           <QuickDropdown
             open={openSection === 'type'}
             onToggle={() => setOpenSection(o => (o === 'type' ? null : 'type'))}
@@ -171,77 +177,105 @@ export default function TicketPropertiesPanel({
               Internal ticket
             </DropdownItem>
           </QuickDropdown>
+        ) : (
+          <PillTrigger
+            color={ticketType === 'internal' ? 'var(--text-secondary)' : 'var(--brand-600)'}
+            bg={ticketType === 'internal' ? 'var(--bg-tertiary)' : 'var(--brand-50)'}
+            label={ticketType === 'internal' ? 'Internal' : 'Client'}
+            chevron={false}
+          />
         )}
       </PropertyRow>
 
       <PropertyRow label="Priority">
-        <QuickDropdown
-          open={openSection === 'priority'}
-          onToggle={() => setOpenSection(o => (o === 'priority' ? null : 'priority'))}
-          trigger={<PillTrigger color={TICKET_PRIORITY_COLOR[priority]} bg={`${TICKET_PRIORITY_COLOR[priority]}18`} label={TICKET_PRIORITY_LABELS[priority]} />}
-        >
-          {(Object.keys(TICKET_PRIORITY_LABELS) as TicketPriority[]).map(p => (
-            <DropdownItem key={p} onClick={() => handlePriorityChange(p)} active={p === priority}>
-              <Dot color={TICKET_PRIORITY_COLOR[p]} /> {TICKET_PRIORITY_LABELS[p]}
-            </DropdownItem>
-          ))}
-        </QuickDropdown>
+        {canAct ? (
+          <QuickDropdown
+            open={openSection === 'priority'}
+            onToggle={() => setOpenSection(o => (o === 'priority' ? null : 'priority'))}
+            trigger={<PillTrigger color={TICKET_PRIORITY_COLOR[priority]} bg={`${TICKET_PRIORITY_COLOR[priority]}18`} label={TICKET_PRIORITY_LABELS[priority]} />}
+          >
+            {(Object.keys(TICKET_PRIORITY_LABELS) as TicketPriority[]).map(p => (
+              <DropdownItem key={p} onClick={() => handlePriorityChange(p)} active={p === priority}>
+                <Dot color={TICKET_PRIORITY_COLOR[p]} /> {TICKET_PRIORITY_LABELS[p]}
+              </DropdownItem>
+            ))}
+          </QuickDropdown>
+        ) : (
+          <PillTrigger color={TICKET_PRIORITY_COLOR[priority]} bg={`${TICKET_PRIORITY_COLOR[priority]}18`} label={TICKET_PRIORITY_LABELS[priority]} chevron={false} />
+        )}
       </PropertyRow>
 
       <PropertyRow label="Category">
-        <QuickDropdown
-          open={openSection === 'category'}
-          onToggle={() => setOpenSection(o => (o === 'category' ? null : 'category'))}
-          trigger={<PillTrigger color="var(--text-secondary)" bg="var(--bg-tertiary)" label={category.replace('_', ' ')} />}
-        >
-          {CATEGORY_OPTIONS.map(c => (
-            <DropdownItem key={c} onClick={() => handleCategoryChange(c)} active={c === category}>
-              {c.replace('_', ' ')}
-            </DropdownItem>
-          ))}
-        </QuickDropdown>
+        {canAct ? (
+          <QuickDropdown
+            open={openSection === 'category'}
+            onToggle={() => setOpenSection(o => (o === 'category' ? null : 'category'))}
+            trigger={<PillTrigger color="var(--text-secondary)" bg="var(--bg-tertiary)" label={category.replace('_', ' ')} />}
+          >
+            {CATEGORY_OPTIONS.map(c => (
+              <DropdownItem key={c} onClick={() => handleCategoryChange(c)} active={c === category}>
+                {c.replace('_', ' ')}
+              </DropdownItem>
+            ))}
+          </QuickDropdown>
+        ) : (
+          <PillTrigger color="var(--text-secondary)" bg="var(--bg-tertiary)" label={category.replace('_', ' ')} chevron={false} />
+        )}
       </PropertyRow>
 
       <PropertyRow label="Project">
-        <QuickDropdown
-          open={openSection === 'project'}
-          onToggle={() => setOpenSection(o => (o === 'project' ? null : 'project'))}
-          trigger={
-            <PillTrigger
-              color={projectId ? 'var(--brand-600)' : 'var(--text-tertiary)'}
-              bg={projectId ? 'var(--brand-50)' : 'var(--bg-tertiary)'}
-              label={projectId ? (clientProjects.find(p => p.id === projectId)?.name ?? 'Unknown') : 'None'}
-            />
-          }
-        >
-          <DropdownItem onClick={() => handleProjectChange(null)} active={!projectId}>
-            No project
-          </DropdownItem>
-          {clientProjects.map(p => (
-            <DropdownItem key={p.id} onClick={() => handleProjectChange(p.id)} active={p.id === projectId}>
-              {p.name}
+        {canAct ? (
+          <QuickDropdown
+            open={openSection === 'project'}
+            onToggle={() => setOpenSection(o => (o === 'project' ? null : 'project'))}
+            trigger={
+              <PillTrigger
+                color={projectId ? 'var(--brand-600)' : 'var(--text-tertiary)'}
+                bg={projectId ? 'var(--brand-50)' : 'var(--bg-tertiary)'}
+                label={projectId ? (clientProjects.find(p => p.id === projectId)?.name ?? 'Unknown') : 'None'}
+              />
+            }
+          >
+            <DropdownItem onClick={() => handleProjectChange(null)} active={!projectId}>
+              No project
             </DropdownItem>
-          ))}
-          {clientProjects.length === 0 && (
-            <div style={{ padding: '7px 9px', fontSize: '12px', color: 'var(--text-tertiary)' }}>
-              This client has no projects yet.
-            </div>
-          )}
-        </QuickDropdown>
+            {clientProjects.map(p => (
+              <DropdownItem key={p.id} onClick={() => handleProjectChange(p.id)} active={p.id === projectId}>
+                {p.name}
+              </DropdownItem>
+            ))}
+            {clientProjects.length === 0 && (
+              <div style={{ padding: '7px 9px', fontSize: '12px', color: 'var(--text-tertiary)' }}>
+                This client has no projects yet.
+              </div>
+            )}
+          </QuickDropdown>
+        ) : (
+          <PillTrigger
+            color={projectId ? 'var(--brand-600)' : 'var(--text-tertiary)'}
+            bg={projectId ? 'var(--brand-50)' : 'var(--bg-tertiary)'}
+            label={projectId ? (clientProjects.find(p => p.id === projectId)?.name ?? 'Unknown') : 'None'}
+            chevron={false}
+          />
+        )}
       </PropertyRow>
 
       <PropertyRow label="Waiting on">
-        <QuickDropdown
-          open={openSection === 'blocked'}
-          onToggle={() => setOpenSection(o => (o === 'blocked' ? null : 'blocked'))}
-          trigger={<PillTrigger color={blockedOn ? 'var(--brand-600)' : 'var(--text-tertiary)'} bg={blockedOn ? 'var(--brand-50)' : 'var(--bg-tertiary)'} label={blockedOn ? (blockedOn === 'client' ? 'Client' : 'Team') : 'Neither'} />}
-        >
-          {([null, 'team', 'client'] as const).map(v => (
-            <DropdownItem key={v ?? 'none'} onClick={() => handleBlockedOnChange(v)} active={v === blockedOn}>
-              {v ?? 'Neither'}
-            </DropdownItem>
-          ))}
-        </QuickDropdown>
+        {canAct ? (
+          <QuickDropdown
+            open={openSection === 'blocked'}
+            onToggle={() => setOpenSection(o => (o === 'blocked' ? null : 'blocked'))}
+            trigger={<PillTrigger color={blockedOn ? 'var(--brand-600)' : 'var(--text-tertiary)'} bg={blockedOn ? 'var(--brand-50)' : 'var(--bg-tertiary)'} label={blockedOn ? (blockedOn === 'client' ? 'Client' : 'Team') : 'Neither'} />}
+          >
+            {([null, 'team', 'client'] as const).map(v => (
+              <DropdownItem key={v ?? 'none'} onClick={() => handleBlockedOnChange(v)} active={v === blockedOn}>
+                {v ?? 'Neither'}
+              </DropdownItem>
+            ))}
+          </QuickDropdown>
+        ) : (
+          <PillTrigger color={blockedOn ? 'var(--brand-600)' : 'var(--text-tertiary)'} bg={blockedOn ? 'var(--brand-50)' : 'var(--bg-tertiary)'} label={blockedOn ? (blockedOn === 'client' ? 'Client' : 'Team') : 'Neither'} chevron={false} />
+        )}
       </PropertyRow>
 
       <PropertyRow label="Due date">
@@ -249,6 +283,7 @@ export default function TicketPropertiesPanel({
           type="date"
           value={dueDate}
           onChange={e => handleDueDateChange(e.target.value)}
+          disabled={!canAct}
           style={{
             fontSize: '12px', padding: '5px 8px', borderRadius: '6px', border: '0.5px solid var(--border-default)',
             background: 'var(--bg-tertiary)', color: dueDate ? 'var(--text-primary)' : 'var(--text-tertiary)', outline: 'none',
@@ -259,9 +294,11 @@ export default function TicketPropertiesPanel({
       <div style={{ padding: '12px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
           <span style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Assignees</span>
-          <button onClick={() => setOpenSection(o => (o === 'assignees' ? null : 'assignees'))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brand-600)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px' }}>
-            <Plus size={11} /> Edit
-          </button>
+          {canAct && (
+            <button onClick={() => setOpenSection(o => (o === 'assignees' ? null : 'assignees'))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brand-600)', display: 'flex', alignItems: 'center', gap: '3px', fontSize: '11px' }}>
+              <Plus size={11} /> Edit
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
@@ -276,7 +313,7 @@ export default function TicketPropertiesPanel({
           ))}
         </div>
 
-        {openSection === 'assignees' && (
+        {openSection === 'assignees' && canAct && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: '10px', borderTop: '0.5px solid var(--border-default)', paddingTop: '10px' }}>
             {candidatePool.map(m => {
               const selected = assigneeIds.includes(m.id)

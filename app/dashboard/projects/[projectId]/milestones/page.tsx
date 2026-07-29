@@ -1,12 +1,21 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import MilestonesPanel from './MilestonesPanel'
 import type { Milestone } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
+// Milestones are paused while the product focuses on Ticketing. The real
+// page logic lives in MilestonesPageContent below, untouched — this default
+// export just redirects instead of rendering it. Swap the body of this
+// function back to `return MilestonesPageContent({ params })` (and re-link
+// the project hub's nav) to bring it back.
 export default async function MilestonesPage({ params }: { params: { projectId: string } }) {
+  redirect(`/dashboard/projects/${params.projectId}`)
+}
+
+async function MilestonesPageContent({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 

@@ -1,16 +1,24 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { LayoutGrid, List as ListIcon, Search, Plus, Inbox, ArrowUp, ArrowDown, ChevronDown, Lock, Building2 } from 'lucide-react'
-import { updateTicket, setTicketAssignees } from '@/lib/tickets/team-actions'
+import { updateTicket, setTicketAssignees, findTicketByRef } from '@/lib/tickets/team-actions'
 import { formatTicketRef, ticketClientCode, formatRelative, getInitials, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import { TICKET_LANES, TICKET_PRIORITY_LABELS } from '@/types'
-import type { TicketStatus, TicketPriority, TeamMember, Client, Project } from '@/types'
+import type { TicketStatus, TicketPriority, TeamMember } from '@/types'
 import TicketCard, { type BoardTicket } from './TicketCard'
 import NewTicketModal from './NewTicketModal'
+
+export interface SelectableProject {
+  id: string
+  name: string
+  client_id: string
+  client_name: string
+}
 
 type Filter = 'all' | 'mine' | 'unassigned'
 type View = 'board' | 'list'
@@ -25,16 +33,19 @@ const STATUS_RANK: Record<TicketStatus, number> = { open: 0, in_progress: 1, res
 export default function TicketsBoard({
   initialTickets,
   teamMembers,
-  clients,
   projects,
+  projectMemberIds,
   currentTeamMemberId,
+  defaultProjectId,
 }: {
   initialTickets: BoardTicket[]
   teamMembers: TeamMember[]
-  clients: Client[]
-  projects: Project[]
+  projects: SelectableProject[]
+  projectMemberIds: Record<string, string[]>
   currentTeamMemberId: string
+  defaultProjectId?: string
 }) {
+  const router = useRouter()
   const [tickets, setTickets] = useState(initialTickets)
   const [view, setView] = useState<View>('board')
   const [groupBy, setGroupBy] = useState<GroupBy>('status')
@@ -45,6 +56,7 @@ export default function TicketsBoard({
   const [dragOverLane, setDragOverLane] = useState<string | null>(null)
   const [sortKey, setSortKey] = useState<SortKey>('updated')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
+  const [searchingGlobally, setSearchingGlobally] = useState(false)
 
   const filtered = useMemo(() => {
     return tickets.filter(t => {
@@ -57,6 +69,22 @@ export default function TicketsBoard({
       return true
     })
   }, [tickets, filter, search, currentTeamMemberId])
+
+  // The default list only shows tickets from the caller's own projects
+  // (server-scoped in page.tsx) — any ticket is still viewable by number,
+  // it just won't be in this loaded set, hence a server round-trip here
+  // rather than a client-side filter.
+  const looksLikeTicketNumber = /\d/.test(search)
+  async function handleGlobalSearch() {
+    setSearchingGlobally(true)
+    const result = await findTicketByRef(search)
+    setSearchingGlobally(false)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    router.push(`/dashboard/tickets/${result.id}`)
+  }
 
   async function applyFieldChange(ticketId: string, field: 'status' | 'priority', value: string) {
     const prev = tickets
@@ -196,12 +224,26 @@ export default function TicketsBoard({
           ))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, maxWidth: '280px', padding: '6px 10px', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-          <Search size={13} color="var(--text-tertiary)" />
-          <input
-            value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tickets…"
-            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '12px', color: 'var(--text-primary)' }}
-          />
+        <div style={{ display: 'flex', flexDirection: 'column', flex: 1, maxWidth: '280px', gap: '3px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', background: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+            <Search size={13} color="var(--text-tertiary)" />
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && looksLikeTicketNumber && filtered.length === 0) handleGlobalSearch() }}
+              placeholder="Search tickets, or #number to find any ticket…"
+              style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '12px', color: 'var(--text-primary)' }}
+            />
+          </div>
+          {search.trim() && looksLikeTicketNumber && filtered.length === 0 && (
+            <button
+              onClick={handleGlobalSearch}
+              disabled={searchingGlobally}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--brand-600)', fontSize: '11px', textAlign: 'left', padding: '0 2px' }}
+            >
+              {searchingGlobally ? 'Searching…' : `Not in your projects — search all tickets for "${search.trim()}" →`}
+            </button>
+          )}
         </div>
 
         {view === 'board' && (
@@ -419,9 +461,10 @@ export default function TicketsBoard({
         {showNew && (
           <NewTicketModal
             onClose={() => setShowNew(false)}
-            clients={clients}
             projects={projects}
+            projectMemberIds={projectMemberIds}
             teamMembers={teamMembers}
+            defaultProjectId={defaultProjectId}
           />
         )}
       </AnimatePresence>

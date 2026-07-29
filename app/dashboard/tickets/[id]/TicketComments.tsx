@@ -20,12 +20,14 @@ export default function TicketComments({
   candidateMentions,
   currentTeamMemberId,
   ticketType,
+  canAct = true,
 }: {
   ticketId: string
   initialComments: EnrichedComment[]
   candidateMentions: TeamMember[]
   currentTeamMemberId: string
   ticketType: TicketType
+  canAct?: boolean
 }) {
   const [comments, setComments] = useState(initialComments)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -124,12 +126,18 @@ export default function TicketComments({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '18px' }}>
-        <Avatar name="You" />
-        <div style={{ flex: 1 }}>
-          <Composer candidateMentions={candidateMentions} submitLabel="Comment" resetAfterSubmit onSubmit={handlePost} allowClientVisible={ticketType !== 'internal'} />
+      {canAct ? (
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '18px' }}>
+          <Avatar name="You" />
+          <div style={{ flex: 1 }}>
+            <Composer candidateMentions={candidateMentions} submitLabel="Comment" resetAfterSubmit onSubmit={handlePost} allowClientVisible={ticketType !== 'internal'} />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', background: 'var(--bg-tertiary)', borderRadius: '7px', padding: '8px 10px', marginBottom: '18px' }}>
+          You're not on this ticket's project, so you can view the conversation but can't comment.
+        </div>
+      )}
 
       {comments.length === 0 ? (
         <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '12px' }}>No comments yet.</p>

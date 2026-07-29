@@ -35,6 +35,9 @@ export default function PortalTicketAttachments({
   const [uploading, setUploading] = useState(false)
   const [lightbox, setLightbox] = useState<{ url: string; name: string } | null>(null)
 
+  const images = initialDocuments.filter(d => isImageFile(d.file_type))
+  const files = initialDocuments.filter(d => !isImageFile(d.file_type))
+
   async function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     e.target.value = ''
@@ -83,21 +86,34 @@ export default function PortalTicketAttachments({
         <input ref={fileInputRef} type="file" onChange={handleFileInput} style={{ display: 'none' }} />
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-        {initialDocuments.map(doc => {
-          const isImage = isImageFile(doc.file_type)
-          return (
+      {images.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: files.length > 0 ? '10px' : 0 }}>
+          {images.map(doc => (
+            <button
+              key={doc.id}
+              onClick={() => doc.signedUrl && setLightbox({ url: doc.signedUrl, name: doc.name })}
+              title={doc.name}
+              style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', border: 'none', padding: 0, cursor: 'pointer', background: 'var(--bg-tertiary)' }}
+            >
+              {doc.signedUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={doc.signedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              ) : (
+                <span style={{ fontSize: '18px' }}>🖼</span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {files.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+          {files.map(doc => (
             <a
               key={doc.id}
               href={doc.signedUrl ?? undefined}
-              target={isImage ? undefined : '_blank'}
+              target="_blank"
               rel="noopener noreferrer"
-              onClick={e => {
-                if (isImage && doc.signedUrl) {
-                  e.preventDefault()
-                  setLightbox({ url: doc.signedUrl, name: doc.name })
-                }
-              }}
               style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px', textDecoration: 'none' }}
             >
               <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
@@ -108,9 +124,9 @@ export default function PortalTicketAttachments({
                 </div>
               </div>
             </a>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
       <ImageLightbox src={lightbox?.url ?? null} alt={lightbox?.name ?? ''} onClose={() => setLightbox(null)} />
     </div>

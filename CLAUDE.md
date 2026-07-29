@@ -12,6 +12,12 @@ client projects. The core problem it solves: clients say "we never agreed to tha
 "we don't remember that decision." This platform creates an auditable, signed record of
 every decision and milestone, with a read-only portal for clients.
 
+**Current focus: Ticketing only.** The product is deliberately scoped down to
+Clients → Projects → Tickets for now — Milestones, Decisions, and the standalone
+project-level Documents panel are paused (routes redirect away, nav links removed)
+while Ticketing is built out. None of that code was deleted; see "Paused features"
+below for exactly what's off and how to bring it back.
+
 ---
 
 ## Key design decisions (do not change without good reason)
@@ -26,10 +32,10 @@ every decision and milestone, with a read-only portal for clients.
 
 The old design reached the portal via an unguessable per-project `portal_token` URL.
 That's retired — there is no `portal_token` column anymore. Login determines
-identity; the client hub (`/portal`) lists Tickets + all their Projects, and
-milestones/decisions/documents for a given project live under
-`/portal/projects/[projectId]/...`, all gated by the session cookie
-(`middleware.ts`), not a token.
+identity; the client hub (`/portal`) currently lists just Tickets (the "Your
+Projects" list and the `/portal/projects/[projectId]/...` drill-down —
+milestones/decisions/documents — are paused, see "Paused features" below),
+all gated by the session cookie (`middleware.ts`), not a token.
 
 Signing is still **only** ever done via `/sign/[approvalToken]` — a one-time
 email link to a named recipient. Clients cannot sign anything from the portal,
@@ -53,14 +59,11 @@ same vault.
 ### Ticketing — the heart of the app
 
 Tickets are the primary surface now — clients log into the portal and raise
-them; the client's assigned **Manager** triages and routes them to their team.
-Approvals/milestones/decisions still exist but are one tab among several, not
-the only thing Aligned does.
+them (still an optional, un-forced project pick on that side); the assigned
+project's team triages and works them.
 
 Key departures from a plain kanban:
 
-- **No project level.** A ticket belongs to a `client_id` (required); `project_id`
-  is optional, purely for tying a ticket to a specific engagement when useful.
 - **Dual authorship.** A ticket/comment is raised by exactly one of a
   `team_members` row OR a free-text `created_by_client_name` (the client login
   is one shared credential per company, not per person, so there's no
@@ -70,6 +73,11 @@ Key departures from a plain kanban:
   "posting as" picker sourced from `client_contacts` (see
   `app/portal/(app)/tickets/ContactNamePicker.tsx`) — that's cosmetic
   attribution, not a security boundary; the login id is the boundary.
+- **`ticket_type`** (`'client' | 'internal'`, migration 033) — internal tickets
+  are never shown on the client's portal and can only ever carry internal
+  comments (enforced by a DB trigger, not just UI). A client-raised ticket is
+  frozen to `'client'` forever (migration 034) — only team-raised tickets can
+  be reclassified either direction.
 - **Status** is richer than a 3-lane board on purpose: `open | in_progress |
   resolved | closed`, plus `reopened_count` (bumped by trigger, not a full
   `parent_id`/iteration chain like milestones — tickets aren't formal
@@ -77,28 +85,80 @@ Key departures from a plain kanban:
 - **`blocked_on`** (`'client' | 'team'`, nullable) is the same concept as
   `milestones.delay_owner`, reused for visual/conceptual consistency between
   the two features.
-- **Assignees are always team members** (`ticket_assignees`) — clients raise
-  and watch, they don't get assigned.
+- **Assignees are always team members** (`ticket_assignees`, multiple per
+  ticket) — clients raise and watch, they don't get assigned.
 - **Mentions** (`ticket_comments.mentioned_team_member_ids`) are restricted to
-  people on the client's team (see below) — enforced by a filter trigger, not
-  just the composer UI.
+  people on the client's team (`is_on_client_team()`) — enforced by a filter
+  trigger, not just the composer UI. This pool is intentionally wider than
+  project membership (below) — mentioning isn't a security boundary the way
+  acting on a ticket is.
 
-**Visibility (migration 037, `can_view_ticket` / `is_client_manager_or_admin`).**
-Unlike every other table in this app (which grants full access to any
-authenticated team member), tickets are scoped: an `admin` sees everything; a
-client's assigned `manager` sees every ticket belonging to that client (they're
-the one triaging/routing the whole queue); a ticket's creator and assignees can
-always see it regardless of role. **A plain `member` who neither raised nor is
-assigned to a ticket cannot see it**, even if they report to that client's
-manager — this was narrowed from the original migration-010 design (which gave
-every direct report of the manager blanket visibility) after that turned out to
-leak tickets to team members with nothing to do with them. `is_on_client_team()`
-still exists and is used unchanged for a *wider* pool elsewhere (who's eligible
-to be assigned, @mention filtering) — only default, unassigned visibility
-narrowed. **This is deliberately not extended to
-clients/projects/milestones/decisions/documents** — those keep the original
-"any team member, full access" policies. Don't copy the ticket RLS pattern
-onto those tables without discussing it first; it's a real behavior change.
+**Project membership drives who can act on a ticket (migration 038,
+`project_members` / `is_project_member` / `can_edit_ticket` /
+`can_be_ticket_assignee`).** A project now has an explicit team roster
+(`project_members`, managed from the project hub's "Project team" panel by
+anyone already on the project, the client's assigned Manager, or an admin — see
+`ProjectMembersManager.tsx` / `lib/projects/members-actions.ts`). Being on a
+project's team is what lets you comment on, change properties of, assign
+people to, and attach files to that project's tickets — being a plain `member`
+elsewhere in the org no longer grants any of that by itself. A client's
+assigned Manager and admins keep full action rights across all of that
+client's tickets regardless of explicit project membership (an intentional
+override, not narrowed by this). `can_edit_ticket(ticket_id, user_id)` is the
+single predicate for every ticket write surface (tickets UPDATE,
+ticket_comments INSERT, ticket_assignees INSERT/DELETE, ticket-linked
+`documents` INSERT/UPDATE/DELETE) — never re-implement it inline.
+
+**Visibility is open, unlike action rights.** Any active team member can view
+or search *any* ticket (`tickets`/`ticket_comments`/`ticket_assignees` SELECT
+policies are simply `using (true)`, matching the "any team member, full
+access" READ model every other table in this app already uses) — they just
+can't act on one outside their own projects (read-only in the UI: no comment
+composer, properties render as static pills, no upload/delete on attachments).
+The dashboard's default Tickets list is still narrowed to "my projects" as a
+**display filter** computed in `app/dashboard/tickets/page.tsx` (project
+membership ∪ managed clients ∪ tickets you raised or are assigned to) — not an
+RLS restriction — precisely so the "jump to ticket #" search
+(`findTicketByRef`) can still open anything outside that set. This
+supersedes migration 037's narrower SELECT policy; that narrowing turned out
+to conflict with wanting any ticket to be findable by number.
+
+**Ticket creation requires a project** on the dashboard side — the picker in
+`NewTicketModal.tsx` only offers the team member's own projects (or every
+project, for an admin/a client's Manager); `client_id` is derived from the
+chosen project, never trusted from the client directly. The portal's own
+ticket form is unaffected and keeps its existing optional project picker —
+this was an explicit, separate product decision; don't collapse the two
+flows together.
+
+**This whole model (project-scoped tickets, open ticket visibility) is
+deliberately not extended to clients/projects/milestones/decisions/documents**
+— those keep the original "any team member, full access" policies. Don't copy
+the ticket RLS pattern onto those tables without discussing it first; it's a
+real behavior change.
+
+### Paused features — Milestones, Decisions, Documents (project-level)
+
+Every panel, action, and migration for these still exists on disk, untouched
+— they're switched off at the routing layer only, so re-enabling any of them
+is a small, mechanical change with nothing to rebuild:
+
+- **Dashboard**: `app/dashboard/projects/[projectId]/{milestones,decisions,documents}/page.tsx`
+  each had their real logic renamed into an unused `*PageContent` function in
+  the same file, with the actual default export reduced to a one-line
+  `redirect(...)` back to the project hub. To re-enable one, replace that
+  redirect with `return XPageContent({ params })` and re-add its quick-nav
+  card on the project hub page (`app/dashboard/projects/[projectId]/page.tsx`,
+  now ticket-stats-only).
+- **Portal**: `app/portal/(app)/projects/[projectId]/layout.tsx` redirects to
+  `/portal` before rendering anything below it (overview/milestones/
+  decisions/documents pages are all untouched, just unreachable). Remove that
+  redirect, re-add the "Projects" tab to `PortalNav.tsx`, and re-add the "Your
+  projects" list + query to the portal hub (`app/portal/(app)/page.tsx`) to
+  bring the whole drill-down back.
+- Ticket attachments (`documents.ticket_id`) are **not** part of this pause —
+  they're Ticketing, and keep working through `can_edit_ticket()` (migration
+  038), independent of the standalone project-level Documents panel above.
 
 **Notifications split by principal type:**
 - Team side: real in-app notifications (`notifications` table + Supabase
@@ -225,28 +285,29 @@ app/
     page.tsx              ← Overview / home
     layout.tsx            ← Sidebar layout + NotificationsProvider
     template.tsx          ← Page-transition wrapper (framer-motion)
-    tickets/               ← Ticket board (kanban+list), new-ticket modal
+    tickets/               ← Ticket board (kanban+list), new-ticket modal, ticket-# search
       page.tsx / TicketsBoard.tsx / TicketCard.tsx / NewTicketModal.tsx
-      [id]/                ← Ticket detail + comments
-        page.tsx / TicketDetail.tsx / TicketComments.tsx
+      [id]/                ← Ticket detail + comments (read-only when !canAct)
+        page.tsx / TicketDetail.tsx / TicketComments.tsx / TicketPropertiesPanel.tsx / TicketAttachments.tsx
     clients/               ← Client list + client detail
       [clientId]/
         ContactsManager.tsx       ← Client contacts
         ClientAccessManager.tsx  ← Manager picker + portal login issuance
     projects/
       [projectId]/
-        page.tsx          ← Project hub (stats, quick nav)
-        milestones/ decisions/ documents/  ← Team-side management panels
+        page.tsx                   ← Project hub: ticket stats + team + embedded board (Milestones/Decisions/Documents paused, see above)
+        ProjectMembersManager.tsx  ← Project team add/remove
+        milestones/ decisions/ documents/  ← Paused panels (untouched, unreachable — see "Paused features")
 
   portal/
     login/                ← Client login (session-based, replaces portal_token)
       page.tsx / LoginForm.tsx / actions.ts
     (app)/                ← Route group requiring a valid client session
-      layout.tsx          ← Topbar + PortalNav (Tickets / Projects)
+      layout.tsx          ← Topbar + PortalNav (Tickets only — Projects tab paused)
       template.tsx        ← Page-transition wrapper
-      page.tsx            ← Client hub: ticket summary + project list
+      page.tsx            ← Client hub: ticket summary only (project list paused)
       tickets/            ← List / new / detail + ContactNamePicker
-      projects/[projectId]/  ← Milestones/decisions/documents (session-scoped)
+      projects/[projectId]/  ← Paused (layout.tsx redirects to /portal — see "Paused features")
 
   sign/[approvalToken]/   ← Sign-off page (email link destination) — UNCHANGED
     page.tsx              ← Server: validates token, shows state
@@ -258,7 +319,7 @@ app/
 
 components/
   dashboard/
-    Sidebar.tsx           ← Nav sidebar, incl. Tickets entry
+    Header.tsx            ← Top nav (Overview/Tickets/Projects/Clients[/Team])
     NotificationBell.tsx  ← In-app notification dropdown
 
 hooks/
@@ -272,8 +333,11 @@ lib/
     client-session-cookies.ts ← next/headers cookie wrapper
   portal/session-guard.ts  ← requireClientSession / getSessionClient / getSessionProject
   tickets/
-    team-actions.ts        ← Server Actions: dashboard-side ticket CRUD (RLS-governed)
+    team-actions.ts        ← Server Actions: dashboard-side ticket CRUD (RLS-governed), findTicketByRef search
     portal-actions.ts      ← Server Actions: client-side ticket create/comment (service role + manual client_id checks)
+  projects/
+    actions.ts             ← createProject (auto-adds creator as first project_member) / deleteProject
+    members-actions.ts     ← addProjectMember / removeProjectMember (RLS: can_manage_project_members)
   clients/access-actions.ts  ← Manager assignment + login credential issue/revoke
   notifications/create.ts   ← createTicketNotifications / getActorName
   email/index.ts          ← Resend helpers (approvals, nudge, concern, tickets) — lazy client, no-ops if RESEND_API_KEY unset

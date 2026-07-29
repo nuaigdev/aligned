@@ -35,6 +35,15 @@ export async function createProject(input: {
 
   if (error) return { error: error.message }
 
+  // The creator is auto-added as the project's first member — otherwise
+  // nobody could add anyone else (can_manage_project_members requires
+  // already being a member, or admin/the client's manager).
+  await supabase.from('project_members').insert({
+    project_id: data.id,
+    team_member_id: check.id,
+    added_by: check.id,
+  })
+
   revalidatePath('/dashboard/projects')
   return { id: data.id }
 }

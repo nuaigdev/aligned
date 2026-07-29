@@ -1,12 +1,21 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import DecisionsPanel from './DecisionsPanel'
 import type { Decision } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
+// Decisions are paused while the product focuses on Ticketing. The real
+// page logic lives in DecisionsPageContent below, untouched — this default
+// export just redirects instead of rendering it. Swap the body of this
+// function back to `return DecisionsPageContent({ params })` (and re-link
+// the project hub's nav) to bring it back.
 export default async function DecisionsPage({ params }: { params: { projectId: string } }) {
+  redirect(`/dashboard/projects/${params.projectId}`)
+}
+
+async function DecisionsPageContent({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 

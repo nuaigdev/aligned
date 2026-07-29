@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { getSessionProject } from '@/lib/portal/session-guard'
 import ProjectTabs from './ProjectTabs'
@@ -10,6 +11,13 @@ export default async function PortalProjectLayout({
   children: React.ReactNode
   params: { projectId: string }
 }) {
+  // The portal's project drill-down (overview/milestones/decisions/
+  // documents) is paused while the product focuses on Ticketing — every
+  // page below this layout is untouched, this is the only thing blocking
+  // access. Remove this redirect (and re-add the portal hub's project
+  // list/nav tab) to bring it back.
+  redirect('/portal')
+
   const project = await getSessionProject(params.projectId)
 
   return (

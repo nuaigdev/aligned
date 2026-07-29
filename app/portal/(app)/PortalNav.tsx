@@ -4,9 +4,12 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { motion } from 'framer-motion'
 
+// The Projects tab is retired while the product focuses on Ticketing — the
+// portal's project drill-down is redirected away (see
+// app/portal/(app)/projects/[projectId]/layout.tsx). Re-add
+// { label: 'Projects', href: '/portal' } here when re-enabling it.
 const TABS = [
-  { label: 'Tickets',  href: '/portal/tickets' },
-  { label: 'Projects', href: '/portal' },
+  { label: 'Tickets', href: '/portal/tickets' },
 ]
 
 export default function PortalNav() {

@@ -1,12 +1,22 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import DocumentsPanel from './DocumentsPanel'
 import type { Document } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
+// Documents (the standalone project-level panel) are paused while the
+// product focuses on Ticketing — ticket attachments are unaffected and keep
+// working. The real page logic lives in DocumentsPageContent below,
+// untouched — this default export just redirects instead of rendering it.
+// Swap the body of this function back to `return DocumentsPageContent({
+// params })` (and re-link the project hub's nav) to bring it back.
 export default async function DocumentsPage({ params }: { params: { projectId: string } }) {
+  redirect(`/dashboard/projects/${params.projectId}`)
+}
+
+async function DocumentsPageContent({ params }: { params: { projectId: string } }) {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 

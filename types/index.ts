@@ -129,6 +129,16 @@ export interface Project {
   updated_at: string
 }
 
+export interface ProjectMember {
+  id: string
+  project_id: string
+  team_member_id: string
+  added_by: string | null
+  added_at: string
+  // Joined
+  member?: TeamMember
+}
+
 export interface Milestone {
   id: string
   project_id: string

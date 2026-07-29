@@ -25,19 +25,26 @@ async function activeClientContactEmails(supabase: SupabaseClient, clientId: str
 }
 
 export async function createTicket(
-  input: Omit<CreateTicketInput, 'created_by_client_name'>
+  input: Omit<CreateTicketInput, 'created_by_client_name' | 'client_id'> & { project_id: string }
 ): Promise<{ id: string } | { error: string }> {
   const teamMemberId = await currentTeamMemberId()
   if (!teamMemberId) return { error: 'Not signed in.' }
   if (!input.title.trim()) return { error: 'Give the ticket a title.' }
+  if (!input.project_id) return { error: 'Pick a project — every ticket you create needs to belong to one of your projects.' }
 
   const supabase = createSupabaseServerClient()
+
+  // client_id is derived from the project rather than trusted from the
+  // caller — the picker only ever offers the team member's own projects,
+  // and RLS (migration 038) re-checks project membership on insert anyway.
+  const { data: project } = await supabase.from('projects').select('client_id').eq('id', input.project_id).maybeSingle()
+  if (!project) return { error: 'That project could not be found.' }
 
   const { data: ticket, error } = await supabase
     .from('tickets')
     .insert({
-      client_id: input.client_id,
-      project_id: input.project_id || null,
+      client_id: project.client_id,
+      project_id: input.project_id,
       title: input.title.trim(),
       description: input.description?.trim() || null,
       category: input.category || 'general',
@@ -64,7 +71,7 @@ export async function createTicket(
   }
 
   const actor = await getActorName(supabase, teamMemberId)
-  const { data: client } = await supabase.from('clients').select('manager_id, name').eq('id', input.client_id).maybeSingle()
+  const { data: client } = await supabase.from('clients').select('manager_id, name').eq('id', project.client_id).maybeSingle()
 
   const recipients = [...(input.assignee_ids ?? [])]
   if (client?.manager_id) recipients.push(client.manager_id)
@@ -321,4 +328,26 @@ export async function deleteTicketComment(commentId: string): Promise<{ ok: true
     revalidatePath(`/portal/tickets/${comment.ticket_id}`)
   }
   return { ok: true }
+}
+
+/**
+ * "Jump to ticket #" — tickets are viewable by any active team member
+ * regardless of project (migration 038), so this can find any ticket in the
+ * system, not just ones in the caller's own projects. Accepts a bare number
+ * ("14"), a formatted ref ("T-014", "#14", "MAT-014"), or anything else with
+ * digits in it — the digits are what matter.
+ */
+export async function findTicketByRef(query: string): Promise<{ id: string } | { error: string }> {
+  const digits = query.replace(/\D/g, '')
+  if (!digits) return { error: 'Enter a ticket number.' }
+
+  const supabase = createSupabaseServerClient()
+  const { data: ticket } = await supabase
+    .from('tickets')
+    .select('id')
+    .eq('ref_number', parseInt(digits, 10))
+    .maybeSingle()
+
+  if (!ticket) return { error: `No ticket #${digits} found.` }
+  return { id: ticket.id }
 }

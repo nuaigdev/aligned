@@ -1,13 +1,16 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
-import { formatDate, formatDecisionRef, formatRelative } from '@/lib/utils'
+import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, Ticket, Loader2, AlertTriangle, UserX } from 'lucide-react'
 import CopyButton from './CopyButton'
 import DeleteConfirmButton from '@/components/dashboard/DeleteConfirmButton'
 import { deleteProject } from '@/lib/projects/actions'
+import { StatCard } from '@/components/dashboard/StatCard'
 import TicketsBoard from '@/app/dashboard/tickets/TicketsBoard'
 import type { BoardTicket } from '@/app/dashboard/tickets/TicketCard'
+import type { SelectableProject } from '@/app/dashboard/tickets/TicketsBoard'
+import ProjectMembersManager from './ProjectMembersManager'
 
 export const dynamic = 'force-dynamic'
 
@@ -24,24 +27,11 @@ export default async function ProjectPage({ params }: { params: { projectId: str
   if (!project) notFound()
 
   const [
-    { data: milestones },
-    { data: decisions },
-    { data: documents },
-    { data: pendingApprovals },
-    { data: recentMilestones },
-    { data: recentDecisions },
-    { data: recentDocuments },
     { data: me },
     { data: rawTickets },
     { data: teamMembers },
+    { data: memberRows },
   ] = await Promise.all([
-    supabase.from('milestones').select('*').eq('project_id', params.projectId).order('sort_order'),
-    supabase.from('decisions').select('*').eq('project_id', params.projectId).order('ref_number', { ascending: false }),
-    supabase.from('documents').select('*').eq('project_id', params.projectId).order('created_at', { ascending: false }),
-    supabase.from('approval_links').select('id').eq('project_id', params.projectId).eq('status', 'pending'),
-    supabase.from('milestones').select('id, title, status, updated_at, type').eq('project_id', params.projectId).order('updated_at', { ascending: false }).limit(6),
-    supabase.from('decisions').select('id, ref_number, title, status, updated_at').eq('project_id', params.projectId).order('updated_at', { ascending: false }).limit(6),
-    supabase.from('documents').select('id, name, created_at, shared_by').eq('project_id', params.projectId).order('created_at', { ascending: false }).limit(6),
     user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
     supabase
       .from('tickets')
@@ -55,9 +45,13 @@ export default async function ProjectPage({ params }: { params: { projectId: str
       .order('position', { ascending: true })
       .order('created_at', { ascending: false }),
     supabase.from('team_members').select('*').eq('is_active', true).order('name'),
+    supabase.from('project_members').select('team_member_id').eq('project_id', params.projectId),
   ])
 
   const canManageProject = me?.role === 'admin' || me?.role === 'manager'
+  const members = teamMembers ?? []
+  const memberIds = new Set((memberRows ?? []).map(r => r.team_member_id))
+  const projectMembers = members.filter(m => memberIds.has(m.id))
 
   const projectTickets: BoardTicket[] = (rawTickets ?? []).map((t: any) => ({
     ...t,
@@ -67,15 +61,13 @@ export default async function ProjectPage({ params }: { params: { projectId: str
     comment_count: t.ticket_comments?.[0]?.count ?? 0,
   }))
 
-  const completed = milestones?.filter(m => m.status === 'completed').length ?? 0
-  const total = milestones?.length ?? 0
-  // Progress is weighted by each milestone's assigned percentage of the
-  // project, not a flat completed/total count — a milestone worth 40% moves
-  // the bar more than one worth 5%.
-  const progress = Math.min(100, (milestones ?? []).filter(m => m.status === 'completed').reduce((sum, m) => sum + (m.percentage ?? 0), 0))
+  const openCount = projectTickets.filter(t => t.status === 'open').length
+  const inProgressCount = projectTickets.filter(t => t.status === 'in_progress').length
+  const activeTickets = projectTickets.filter(t => t.status === 'open' || t.status === 'in_progress')
+  const urgentCount = activeTickets.filter(t => t.priority === 'urgent').length
+  const unassignedCount = activeTickets.filter(t => (t.assignee_members ?? []).length === 0).length
+
   const client = project.clients as any
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  const portalDeepLink = `${appUrl}/portal/projects/${project.id}`
 
   const STATUS_LABEL: Record<string, string> = {
     active: 'Active', awaiting_client: 'Awaiting client',
@@ -83,42 +75,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
     completed: 'Completed', archived: 'Archived',
   }
 
-  const MS_STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-    not_started:      { label: 'Not started',       bg: 'var(--bg-tertiary)',  color: 'var(--text-tertiary)' },
-    in_progress:      { label: 'In progress',       bg: 'var(--info-bg)',      color: 'var(--info-text)' },
-    awaiting_signoff: { label: 'Awaiting sign-off', bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
-    completed:        { label: 'Completed',          bg: 'var(--success-bg)',   color: 'var(--success-text)' },
-    reopened:         { label: 'Reopened',           bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
-  }
-
-  const DEC_STATUS_CONFIG: Record<string, { label: string; bg: string; color: string }> = {
-    draft:            { label: 'Draft',            bg: 'var(--bg-tertiary)',  color: 'var(--text-tertiary)' },
-    pending_approval: { label: 'Pending approval', bg: 'var(--warning-bg)',   color: 'var(--warning-text)' },
-    approved:         { label: 'Approved',         bg: 'var(--success-bg)',   color: 'var(--success-text)' },
-    amended:          { label: 'Amended',          bg: 'var(--info-bg)',      color: 'var(--info-text)' },
-  }
-
-  type ActivityItem =
-    | { kind: 'milestone'; id: string; title: string; status: string; date: string }
-    | { kind: 'decision';  id: string; ref: number; title: string; status: string; date: string }
-    | { kind: 'document';  id: string; name: string; shared_by: string; date: string }
-
-  const activityItems: ActivityItem[] = [
-    ...(recentMilestones ?? []).map(m => ({
-      kind: 'milestone' as const,
-      id: m.id, title: m.title, status: m.status, date: m.updated_at,
-    })),
-    ...(recentDecisions ?? []).map(d => ({
-      kind: 'decision' as const,
-      id: d.id, ref: d.ref_number, title: d.title, status: d.status, date: d.updated_at,
-    })),
-    ...(recentDocuments ?? []).map(doc => ({
-      kind: 'document' as const,
-      id: doc.id, name: doc.name, shared_by: doc.shared_by, date: doc.created_at,
-    })),
-  ]
-  activityItems.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-  const topActivity = activityItems.slice(0, 6)
+  const selectableProject: SelectableProject = { id: project.id, name: project.name, client_id: project.client_id, client_name: client?.name ?? '' }
 
   return (
     <div>
@@ -178,143 +135,37 @@ export default async function ProjectPage({ params }: { params: { projectId: str
         {client?.login_id && <CopyButton text={client.login_id} />}
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
-        {[
-          { label: 'Progress', value: `${progress}%` },
-          { label: 'Milestones', value: `${completed} / ${total}` },
-          { label: 'Decisions', value: decisions?.length ?? 0 },
-          { label: 'Pending approvals', value: pendingApprovals?.length ?? 0 },
-        ].map(s => (
-          <div key={s.label} style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '12px 14px' }}>
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '3px' }}>{s.label}</div>
-            <div style={{ fontSize: '20px', fontWeight: 500, color: 'var(--text-primary)' }}>{s.value}</div>
-          </div>
-        ))}
+      {/* Team */}
+      <div style={{ marginBottom: '20px' }}>
+        <ProjectMembersManager
+          projectId={project.id}
+          initialMembers={projectMembers}
+          allTeamMembers={members}
+        />
       </div>
 
-      {/* Progress bar */}
-      <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-          <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>Overall progress</span>
-          <span style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>{progress}%</span>
-        </div>
-        <div style={{ height: '6px', background: 'var(--bg-tertiary)', borderRadius: '3px', overflow: 'hidden' }}>
-          <div style={{ height: '100%', width: `${progress}%`, background: '#EA580C', borderRadius: '3px', transition: 'width .3s' }} />
-        </div>
+      {/* Ticket stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '24px' }}>
+        <StatCard icon={Ticket} label="Open" value={openCount} accent="#0C447C" delayMs={0} />
+        <StatCard icon={Loader2} label="In progress" value={inProgressCount} accent="#633806" delayMs={40} />
+        <StatCard icon={AlertTriangle} label="Urgent" value={urgentCount} accent="#A32D2D" delayMs={80} />
+        <StatCard icon={UserX} label="Unassigned" value={unassignedCount} accent="var(--text-tertiary)" delayMs={120} />
       </div>
 
-      {/* Quick nav cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '24px' }}>
-        {[
-          {
-            href: `/dashboard/projects/${project.id}/milestones`,
-            label: 'Milestones',
-            subtitle: 'Manage & track',
-            count: total,
-            desc: `${completed} completed`,
-          },
-          {
-            href: `/dashboard/projects/${project.id}/decisions`,
-            label: 'Decisions',
-            subtitle: 'Log & approve',
-            count: decisions?.length ?? 0,
-            desc: `${decisions?.filter(d => d.status === 'approved').length ?? 0} signed`,
-          },
-          {
-            href: `/dashboard/projects/${project.id}/documents`,
-            label: 'Documents',
-            subtitle: 'Upload & share',
-            count: documents?.length ?? 0,
-            desc: 'All project files',
-          },
-        ].map(item => (
-          <Link
-            key={item.href}
-            href={item.href}
-            style={{
-              display: 'block',
-              padding: '16px',
-              background: 'var(--bg-primary)',
-              border: '0.5px solid var(--border-default)',
-              borderRadius: '10px',
-              textDecoration: 'none',
-              cursor: 'pointer',
-              position: 'relative',
-            }}
-          >
-            <div style={{ position: 'absolute', top: '14px', right: '14px', fontSize: '14px', color: 'var(--text-tertiary)' }}>→</div>
-            <div style={{ fontSize: '22px', fontWeight: 500, color: '#EA580C', marginBottom: '2px' }}>{item.count}</div>
-            <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{item.label}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '2px' }}>{item.subtitle}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '4px' }}>{item.desc}</div>
-          </Link>
-        ))}
-      </div>
-
-      {/* Tickets — scoped to this project only; a ticket can also exist at
-          just the client level with no project link, so this is a subset of
-          that client's full ticket list, not the whole thing. */}
+      {/* Tickets — scoped to this project only */}
       <div style={{ marginBottom: '24px' }}>
         <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
           Tickets
         </div>
         <TicketsBoard
           initialTickets={projectTickets}
-          teamMembers={teamMembers ?? []}
-          clients={client ? [client] : []}
-          projects={[project as any]}
+          teamMembers={members}
+          projects={[selectableProject]}
+          projectMemberIds={{ [project.id]: [...memberIds] }}
           currentTeamMemberId={user?.id ?? ''}
+          defaultProjectId={project.id}
         />
       </div>
-
-      {/* Recent activity */}
-      {topActivity.length > 0 && (
-        <div>
-          <div style={{
-            fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)',
-            textTransform: 'uppercase', letterSpacing: '0.06em',
-            marginBottom: '10px',
-          }}>
-            Recent activity
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-            {topActivity.map(item => {
-              if (item.kind === 'milestone') {
-                const cfg = MS_STATUS_CONFIG[item.status] ?? MS_STATUS_CONFIG.not_started
-                return (
-                  <div key={`ms-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '8px' }}>
-                    <span style={{ fontSize: '14px', flexShrink: 0 }}>🏁</span>
-                    <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: cfg.bg, color: cfg.color, fontWeight: 500, flexShrink: 0 }}>{cfg.label}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{formatRelative(item.date)}</span>
-                  </div>
-                )
-              }
-              if (item.kind === 'decision') {
-                const cfg = DEC_STATUS_CONFIG[item.status] ?? DEC_STATUS_CONFIG.draft
-                return (
-                  <div key={`dec-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '8px' }}>
-                    <span style={{ fontSize: '14px', flexShrink: 0 }}>📋</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{formatDecisionRef(item.ref)}</span>
-                    <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</span>
-                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: cfg.bg, color: cfg.color, fontWeight: 500, flexShrink: 0 }}>{cfg.label}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{formatRelative(item.date)}</span>
-                  </div>
-                )
-              }
-              return (
-                <div key={`doc-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '8px' }}>
-                  <span style={{ fontSize: '14px', flexShrink: 0 }}>📄</span>
-                  <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                  <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '10px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500, flexShrink: 0 }}>Uploaded</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', flexShrink: 0 }}>{formatRelative(item.date)}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
 
       {/* Danger zone */}
       {canManageProject && (
@@ -332,7 +183,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
             <DeleteConfirmButton
               entityLabel="project"
               confirmText={project.name}
-              cascadeWarning={`This permanently deletes ${total} milestone(s), ${decisions?.length ?? 0} decision(s), and ${documents?.length ?? 0} document(s) for ${project.name}.`}
+              cascadeWarning={`This permanently deletes the project "${project.name}" and its team membership list.`}
               action={deleteProject}
               entityId={project.id}
               redirectTo="/dashboard/projects"

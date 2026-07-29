@@ -7,7 +7,8 @@ import toast from 'react-hot-toast'
 import { Check, Search } from 'lucide-react'
 import { createTicket } from '@/lib/tickets/team-actions'
 import { getInitials } from '@/lib/utils'
-import type { Client, TeamMember, Project, TicketPriority, TicketType } from '@/types'
+import type { TeamMember, TicketPriority, TicketType } from '@/types'
+import type { SelectableProject } from './TicketsBoard'
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '8px 11px',
@@ -21,20 +22,21 @@ const CATEGORIES = ['general', 'bug', 'feature_request', 'question', 'billing']
 
 export default function NewTicketModal({
   onClose,
-  clients,
   projects,
+  projectMemberIds,
   teamMembers,
+  defaultProjectId,
 }: {
   onClose: () => void
-  clients: Client[]
-  projects: Project[]
+  projects: SelectableProject[]
+  projectMemberIds: Record<string, string[]>
   teamMembers: TeamMember[]
+  defaultProjectId?: string
 }) {
   const router = useRouter()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
-  const [clientId, setClientId] = useState('')
-  const [projectId, setProjectId] = useState('')
+  const [projectId, setProjectId] = useState(defaultProjectId ?? '')
   const [ticketType, setTicketType] = useState<TicketType>('client')
   const [priority, setPriority] = useState<TicketPriority>('medium')
   const [category, setCategory] = useState('general')
@@ -43,20 +45,12 @@ export default function NewTicketModal({
   const [personSearch, setPersonSearch] = useState('')
   const [saving, setSaving] = useState(false)
 
-  const selectedClient = clients.find(c => c.id === clientId)
-  const clientProjects = projects.filter(p => p.client_id === clientId)
-
-  // Candidate assignees: the client's Manager + that Manager's direct reports —
-  // mirrors migration 010's is_on_client_team() predicate, computed here for the
-  // picker (the DB still enforces it authoritatively on insert).
+  // Assignable pool for the chosen project: its members, plus admins (who can
+  // act on any ticket regardless — migration 038's can_be_ticket_assignee).
   const candidatePool = useMemo(() => {
-    if (!selectedClient) return []
-    return teamMembers.filter(m =>
-      m.role === 'admin' ||
-      m.id === selectedClient.manager_id ||
-      (selectedClient.manager_id && m.manager_id === selectedClient.manager_id)
-    )
-  }, [selectedClient, teamMembers])
+    const memberIds = new Set(projectMemberIds[projectId] ?? [])
+    return teamMembers.filter(m => m.role === 'admin' || memberIds.has(m.id))
+  }, [projectId, projectMemberIds, teamMembers])
 
   const filteredPeople = candidatePool.filter(p =>
     !personSearch.trim() || p.name.toLowerCase().includes(personSearch.toLowerCase())
@@ -68,12 +62,11 @@ export default function NewTicketModal({
 
   async function handleSave() {
     if (!title.trim()) return toast.error('Give the ticket a title')
-    if (!clientId) return toast.error('Pick a client')
+    if (!projectId) return toast.error('Pick a project')
 
     setSaving(true)
     const result = await createTicket({
-      client_id: clientId,
-      project_id: projectId || undefined,
+      project_id: projectId,
       title,
       description,
       category,
@@ -122,21 +115,22 @@ export default function NewTicketModal({
             <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} style={{ ...inputStyle, resize: 'vertical', fontFamily: 'inherit' }} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Client *</label>
-              <select value={clientId} onChange={e => { setClientId(e.target.value); setProjectId(''); setAssigneeIds([]) }} style={inputStyle}>
-                <option value="">Select a client</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Project (optional)</label>
-              <select value={projectId} onChange={e => setProjectId(e.target.value)} disabled={!clientId} style={inputStyle}>
-                <option value="">No specific project</option>
-                {clientProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
+          <div>
+            <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Project *</label>
+            <select
+              value={projectId}
+              onChange={e => { setProjectId(e.target.value); setAssigneeIds([]) }}
+              style={inputStyle}
+              disabled={!!defaultProjectId}
+            >
+              <option value="">Select one of your projects</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name} — {p.client_name}</option>)}
+            </select>
+            {projects.length === 0 && (
+              <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: '5px 0 0' }}>
+                You're not on any projects yet — ask an admin or your Manager to add you to one.
+              </p>
+            )}
           </div>
 
           <div>
@@ -213,16 +207,16 @@ export default function NewTicketModal({
                 <Search size={13} color="var(--text-tertiary)" />
                 <input
                   value={personSearch} onChange={e => setPersonSearch(e.target.value)}
-                  placeholder={clientId ? 'Search the client\'s team…' : 'Pick a client first'}
-                  disabled={!clientId}
+                  placeholder={projectId ? 'Search the project\'s team…' : 'Pick a project first'}
+                  disabled={!projectId}
                   style={{ flex: 1, background: 'none', border: 'none', outline: 'none', fontSize: '13px', color: 'var(--text-primary)' }}
                 />
               </div>
               <div style={{ maxHeight: '160px', overflowY: 'auto' }}>
-                {!clientId ? (
-                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-tertiary)' }}>Select a client to see who can be assigned</div>
+                {!projectId ? (
+                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-tertiary)' }}>Select a project to see who can be assigned</div>
                 ) : filteredPeople.length === 0 ? (
-                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-tertiary)' }}>No one matches — assign a Manager to this client first</div>
+                  <div style={{ padding: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--text-tertiary)' }}>No one matches — add teammates to this project first</div>
                 ) : (
                   filteredPeople.map(p => {
                     const selected = assigneeIds.includes(p.id)
@@ -253,7 +247,7 @@ export default function NewTicketModal({
               Cancel
             </button>
             <button
-              onClick={handleSave} disabled={saving || !title.trim() || !clientId}
+              onClick={handleSave} disabled={saving || !title.trim() || !projectId}
               style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: '#EA580C', color: '#fff', fontSize: '13px', fontWeight: 500, cursor: 'pointer', opacity: saving ? 0.7 : 1 }}
             >
               {saving ? 'Creating…' : 'Create ticket'}
