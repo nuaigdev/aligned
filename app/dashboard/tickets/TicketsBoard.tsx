@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
-import { LayoutGrid, List as ListIcon, Search, Plus, Inbox, ArrowUp, ArrowDown, ChevronDown, Lock } from 'lucide-react'
+import { LayoutGrid, List as ListIcon, Search, Plus, Inbox, ArrowUp, ArrowDown, ChevronDown, Lock, Building2 } from 'lucide-react'
 import { updateTicket, setTicketAssignees } from '@/lib/tickets/team-actions'
 import { formatTicketRef, ticketClientCode, formatRelative, getInitials, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import { TICKET_LANES, TICKET_PRIORITY_LABELS } from '@/types'
@@ -349,9 +349,13 @@ export default function TicketsBoard({
                         <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {ticket.title}
                         </div>
-                        {ticket.ticket_type === 'internal' && (
+                        {ticket.ticket_type === 'internal' ? (
                           <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 6px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-tertiary)', fontWeight: 500, flexShrink: 0 }}>
                             <Lock size={9} /> Internal
+                          </span>
+                        ) : (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '1px 6px', borderRadius: '8px', background: 'var(--brand-50)', color: 'var(--brand-600)', fontWeight: 500, flexShrink: 0 }}>
+                            <Building2 size={9} /> Client
                           </span>
                         )}
                       </div>

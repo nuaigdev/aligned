@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
 import { motion } from 'framer-motion'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Lock } from 'lucide-react'
 import { updateTicket, setTicketAssignees } from '@/lib/tickets/team-actions'
 import { getInitials, formatDate, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import { TICKET_LANES, TICKET_STATUS_LABELS, TICKET_PRIORITY_LABELS } from '@/types'
@@ -142,24 +142,36 @@ export default function TicketPropertiesPanel({
       </PropertyRow>
 
       <PropertyRow label="Type">
-        <QuickDropdown
-          open={openSection === 'type'}
-          onToggle={() => setOpenSection(o => (o === 'type' ? null : 'type'))}
-          trigger={
-            <PillTrigger
-              color={ticketType === 'internal' ? 'var(--text-secondary)' : 'var(--brand-600)'}
-              bg={ticketType === 'internal' ? 'var(--bg-tertiary)' : 'var(--brand-50)'}
-              label={ticketType === 'internal' ? 'Internal' : 'Client'}
-            />
-          }
-        >
-          <DropdownItem onClick={() => handleTicketTypeChange('client')} active={ticketType === 'client'}>
-            Client ticket
-          </DropdownItem>
-          <DropdownItem onClick={() => handleTicketTypeChange('internal')} active={ticketType === 'internal'}>
-            Internal ticket
-          </DropdownItem>
-        </QuickDropdown>
+        {ticket.created_by_client_name ? (
+          <span
+            title="Raised by the client — can only ever be a client ticket"
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 500,
+              padding: '4px 9px', borderRadius: '7px', background: 'var(--brand-50)', color: 'var(--brand-600)',
+            }}
+          >
+            <Lock size={10} /> Client
+          </span>
+        ) : (
+          <QuickDropdown
+            open={openSection === 'type'}
+            onToggle={() => setOpenSection(o => (o === 'type' ? null : 'type'))}
+            trigger={
+              <PillTrigger
+                color={ticketType === 'internal' ? 'var(--text-secondary)' : 'var(--brand-600)'}
+                bg={ticketType === 'internal' ? 'var(--bg-tertiary)' : 'var(--brand-50)'}
+                label={ticketType === 'internal' ? 'Internal' : 'Client'}
+              />
+            }
+          >
+            <DropdownItem onClick={() => handleTicketTypeChange('client')} active={ticketType === 'client'}>
+              Client ticket
+            </DropdownItem>
+            <DropdownItem onClick={() => handleTicketTypeChange('internal')} active={ticketType === 'internal'}>
+              Internal ticket
+            </DropdownItem>
+          </QuickDropdown>
+        )}
       </PropertyRow>
 
       <PropertyRow label="Priority">

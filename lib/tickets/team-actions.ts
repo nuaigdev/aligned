@@ -99,6 +99,18 @@ export async function updateTicket(
 ): Promise<{ ok: true } | { error: string }> {
   const teamMemberId = await currentTeamMemberId()
   const supabase = createSupabaseServerClient()
+
+  // A client-raised ticket can never be marked internal — checked here
+  // ahead of the write (a clearer error than the DB trigger's, which still
+  // backstops this against a direct write). Team-raised tickets can move
+  // freely in either direction.
+  if (patch.ticket_type === 'internal') {
+    const { data: existing } = await supabase.from('tickets').select('created_by_client_name').eq('id', ticketId).maybeSingle()
+    if (existing?.created_by_client_name) {
+      return { error: 'This ticket was raised by the client and can only stay a client ticket.' }
+    }
+  }
+
   const { error } = await supabase.from('tickets').update(patch).eq('id', ticketId)
   if (error) return { error: error.message }
 
