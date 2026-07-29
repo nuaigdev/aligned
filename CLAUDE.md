@@ -32,10 +32,15 @@ below for exactly what's off and how to bring it back.
 
 The old design reached the portal via an unguessable per-project `portal_token` URL.
 That's retired — there is no `portal_token` column anymore. Login determines
-identity; the client hub (`/portal`) currently lists just Tickets (the "Your
-Projects" list and the `/portal/projects/[projectId]/...` drill-down —
-milestones/decisions/documents — are paused, see "Paused features" below),
-all gated by the session cookie (`middleware.ts`), not a token.
+identity. There's no portal tab navigation at all now (`PortalNav.tsx` exists
+but is unused — see "Paused features"): `/portal` is the sole hub, showing
+ticket scorecards + a "Your projects" list; clicking a project goes to
+`/portal/projects/[projectId]`, which now shows that project's tickets (not
+the old milestone/decision/document overview — those routes still exist and
+still redirect back to this page, see below). The one persistent "New
+ticket" button lives in the portal header (`app/portal/(app)/layout.tsx`),
+not duplicated on individual pages. All of this is gated by the session
+cookie (`middleware.ts`), not a token.
 
 Signing is still **only** ever done via `/sign/[approvalToken]` — a one-time
 email link to a named recipient. Clients cannot sign anything from the portal,
@@ -118,10 +123,17 @@ composer, properties render as static pills, no upload/delete on attachments).
 The dashboard's default Tickets list is still narrowed to "my projects" as a
 **display filter** computed in `app/dashboard/tickets/page.tsx` (project
 membership ∪ managed clients ∪ tickets you raised or are assigned to) — not an
-RLS restriction — precisely so the "jump to ticket #" search
-(`findTicketByRef`) can still open anything outside that set. This
-supersedes migration 037's narrower SELECT policy; that narrowing turned out
-to conflict with wanting any ticket to be findable by number.
+RLS restriction — precisely so the universal ticket search can still open
+anything outside that set. This supersedes migration 037's narrower SELECT
+policy; that narrowing turned out to conflict with wanting any ticket
+findable regardless of project.
+
+**Universal ticket search** lives in the dashboard header
+(`components/dashboard/TicketSearch.tsx`, not on the Tickets page itself —
+it's reachable from any dashboard route), backed by `searchTickets()` in
+`lib/tickets/team-actions.ts`. No "#" required — it matches digits anywhere
+in the query against `ref_number` and does a title substring match, showing
+a dropdown of ref + title, most-recently-updated first.
 
 **Ticket creation requires a project** on the dashboard side — the picker in
 `NewTicketModal.tsx` only offers the team member's own projects (or every
@@ -150,12 +162,13 @@ is a small, mechanical change with nothing to rebuild:
   redirect with `return XPageContent({ params })` and re-add its quick-nav
   card on the project hub page (`app/dashboard/projects/[projectId]/page.tsx`,
   now ticket-stats-only).
-- **Portal**: `app/portal/(app)/projects/[projectId]/layout.tsx` redirects to
-  `/portal` before rendering anything below it (overview/milestones/
-  decisions/documents pages are all untouched, just unreachable). Remove that
-  redirect, re-add the "Projects" tab to `PortalNav.tsx`, and re-add the "Your
-  projects" list + query to the portal hub (`app/portal/(app)/page.tsx`) to
-  bring the whole drill-down back.
+- **Portal**: the project layout (`app/portal/(app)/projects/[projectId]/layout.tsx`)
+  no longer redirects — `/portal/projects/[projectId]` now renders that
+  project's ticket list instead. Only the milestones/decisions/documents
+  sub-pages are individually paused, same *PageContent-plus-redirect pattern
+  as the dashboard side — restore each the same way. There's no tab nav
+  anywhere in the portal anymore (`PortalNav.tsx` and `ProjectTabs.tsx` both
+  exist but are unused); re-add whichever ones re-enabling requires.
 - Ticket attachments (`documents.ticket_id`) are **not** part of this pause —
   they're Ticketing, and keep working through `can_edit_ticket()` (migration
   038), independent of the standalone project-level Documents panel above.
@@ -303,11 +316,11 @@ app/
     login/                ← Client login (session-based, replaces portal_token)
       page.tsx / LoginForm.tsx / actions.ts
     (app)/                ← Route group requiring a valid client session
-      layout.tsx          ← Topbar + PortalNav (Tickets only — Projects tab paused)
+      layout.tsx          ← Topbar (Logo→/portal, New ticket, bell, logout) — no tab nav
       template.tsx        ← Page-transition wrapper
-      page.tsx            ← Client hub: ticket summary only (project list paused)
+      page.tsx            ← Client hub: ticket scorecards + projects list
       tickets/            ← List / new / detail + ContactNamePicker
-      projects/[projectId]/  ← Paused (layout.tsx redirects to /portal — see "Paused features")
+      projects/[projectId]/  ← That project's ticket list (milestones/decisions/documents sub-pages paused — see "Paused features")
 
   sign/[approvalToken]/   ← Sign-off page (email link destination) — UNCHANGED
     page.tsx              ← Server: validates token, shows state
@@ -319,7 +332,8 @@ app/
 
 components/
   dashboard/
-    Header.tsx            ← Top nav (Overview/Tickets/Projects/Clients[/Team])
+    Header.tsx            ← Top nav (Overview/Tickets/Projects/Clients[/Team]) + TicketSearch + NotificationBell
+    TicketSearch.tsx      ← Universal ticket search dropdown (header, not the Tickets page)
     NotificationBell.tsx  ← In-app notification dropdown
 
 hooks/
@@ -333,7 +347,7 @@ lib/
     client-session-cookies.ts ← next/headers cookie wrapper
   portal/session-guard.ts  ← requireClientSession / getSessionClient / getSessionProject
   tickets/
-    team-actions.ts        ← Server Actions: dashboard-side ticket CRUD (RLS-governed), findTicketByRef search
+    team-actions.ts        ← Server Actions: dashboard-side ticket CRUD (RLS-governed), searchTickets
     portal-actions.ts      ← Server Actions: client-side ticket create/comment (service role + manual client_id checks)
   projects/
     actions.ts             ← createProject (auto-adds creator as first project_member) / deleteProject

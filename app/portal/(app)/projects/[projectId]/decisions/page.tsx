@@ -1,10 +1,20 @@
+import { redirect } from 'next/navigation'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getSessionProject } from '@/lib/portal/session-guard'
 import PortalDecisionCard from './PortalDecisionCard'
 
 export const dynamic = 'force-dynamic'
 
+// Decisions are paused while the product focuses on Ticketing. The real
+// page logic lives in PortalDecisionsPageContent below, untouched — this
+// default export just redirects instead of rendering it. Swap the body of
+// this function back to `return PortalDecisionsPageContent({ params })`
+// (and re-add the project layout's tabs) to bring it back.
 export default async function PortalDecisionsPage({ params }: { params: { projectId: string } }) {
+  redirect(`/portal/projects/${params.projectId}`)
+}
+
+async function PortalDecisionsPageContent({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()
 

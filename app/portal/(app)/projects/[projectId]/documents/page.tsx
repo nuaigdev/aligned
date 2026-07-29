@@ -1,10 +1,22 @@
+import { redirect } from 'next/navigation'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getSessionProject } from '@/lib/portal/session-guard'
 import DocumentsPortalPanel from './DocumentsPortalPanel'
 
 export const dynamic = 'force-dynamic'
 
+// Documents (the standalone project-level panel) are paused while the
+// product focuses on Ticketing — ticket attachments are unaffected and keep
+// working. The real page logic lives in PortalDocumentsPageContent below,
+// untouched — this default export just redirects instead of rendering it.
+// Swap the body of this function back to `return
+// PortalDocumentsPageContent({ params })` (and re-add the project layout's
+// tabs) to bring it back.
 export default async function PortalDocumentsPage({ params }: { params: { projectId: string } }) {
+  redirect(`/portal/projects/${params.projectId}`)
+}
+
+async function PortalDocumentsPageContent({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()
 

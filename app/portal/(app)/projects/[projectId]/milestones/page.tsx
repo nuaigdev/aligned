@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { getSessionProject } from '@/lib/portal/session-guard'
 import { formatDate, formatFileSize } from '@/lib/utils'
@@ -27,7 +28,16 @@ const FILE_ICON: Record<string, string> = {
 
 export const dynamic = 'force-dynamic'
 
+// Milestones are paused while the product focuses on Ticketing. The real
+// page logic lives in PortalMilestonesPageContent below, untouched — this
+// default export just redirects instead of rendering it. Swap the body of
+// this function back to `return PortalMilestonesPageContent({ params })`
+// (and re-add the project layout's tabs) to bring it back.
 export default async function PortalMilestonesPage({ params }: { params: { projectId: string } }) {
+  redirect(`/portal/projects/${params.projectId}`)
+}
+
+async function PortalMilestonesPageContent({ params }: { params: { projectId: string } }) {
   const project = await getSessionProject(params.projectId)
   const supabase = createServiceRoleClient()
 

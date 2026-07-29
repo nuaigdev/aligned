@@ -330,24 +330,47 @@ export async function deleteTicketComment(commentId: string): Promise<{ ok: true
   return { ok: true }
 }
 
+export interface TicketSearchResult {
+  id: string
+  ref_number: number
+  title: string
+  client_name: string | null
+  client_slug: string | null
+}
+
 /**
- * "Jump to ticket #" — tickets are viewable by any active team member
- * regardless of project (migration 038), so this can find any ticket in the
- * system, not just ones in the caller's own projects. Accepts a bare number
- * ("14"), a formatted ref ("T-014", "#14", "MAT-014"), or anything else with
- * digits in it — the digits are what matter.
+ * Universal ticket search (header search box) — tickets are viewable by any
+ * active team member regardless of project (migration 038), so this
+ * searches the whole system, not just the caller's own projects. Matches a
+ * ticket number (no "#" required — any digits in the query) and/or a title
+ * substring; an exact ref match is surfaced first.
  */
-export async function findTicketByRef(query: string): Promise<{ id: string } | { error: string }> {
-  const digits = query.replace(/\D/g, '')
-  if (!digits) return { error: 'Enter a ticket number.' }
+export async function searchTickets(query: string): Promise<TicketSearchResult[]> {
+  const trimmed = query.trim()
+  if (!trimmed) return []
 
   const supabase = createSupabaseServerClient()
-  const { data: ticket } = await supabase
-    .from('tickets')
-    .select('id')
-    .eq('ref_number', parseInt(digits, 10))
-    .maybeSingle()
+  const digits = trimmed.replace(/\D/g, '')
 
-  if (!ticket) return { error: `No ticket #${digits} found.` }
-  return { id: ticket.id }
+  const [{ data: byRef }, { data: byTitle }] = await Promise.all([
+    digits
+      ? supabase.from('tickets').select('id, ref_number, title, clients(name, slug)').eq('ref_number', parseInt(digits, 10)).limit(1)
+      : Promise.resolve({ data: [] as any[] }),
+    supabase.from('tickets').select('id, ref_number, title, clients(name, slug)').ilike('title', `%${trimmed}%`).order('updated_at', { ascending: false }).limit(8),
+  ])
+
+  const seen = new Set<string>()
+  const merged = [...(byRef ?? []), ...(byTitle ?? [])].filter((t: any) => {
+    if (seen.has(t.id)) return false
+    seen.add(t.id)
+    return true
+  })
+
+  return merged.slice(0, 8).map((t: any) => ({
+    id: t.id,
+    ref_number: t.ref_number,
+    title: t.title,
+    client_name: t.clients?.name ?? null,
+    client_slug: t.clients?.slug ?? null,
+  }))
 }

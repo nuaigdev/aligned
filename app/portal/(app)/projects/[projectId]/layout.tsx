@@ -1,8 +1,6 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { ArrowLeft } from 'lucide-react'
 import { getSessionProject } from '@/lib/portal/session-guard'
-import ProjectTabs from './ProjectTabs'
 
 export default async function PortalProjectLayout({
   children,
@@ -11,13 +9,6 @@ export default async function PortalProjectLayout({
   children: React.ReactNode
   params: { projectId: string }
 }) {
-  // The portal's project drill-down (overview/milestones/decisions/
-  // documents) is paused while the product focuses on Ticketing — every
-  // page below this layout is untouched, this is the only thing blocking
-  // access. Remove this redirect (and re-add the portal hub's project
-  // list/nav tab) to bring it back.
-  redirect('/portal')
-
   const project = await getSessionProject(params.projectId)
 
   return (
@@ -33,21 +24,11 @@ export default async function PortalProjectLayout({
         <ArrowLeft size={12} /> All projects
       </Link>
 
-      <div style={{ marginBottom: '4px', fontSize: '18px', fontWeight: 500, color: 'var(--text-primary)' }}>
+      <div style={{ marginBottom: '16px', fontSize: '18px', fontWeight: 500, color: 'var(--text-primary)' }}>
         {project.name}
       </div>
 
-      <div style={{
-        background: 'var(--bg-primary)',
-        border: '0.5px solid var(--border-default)',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        marginTop: '12px',
-        marginBottom: '20px',
-      }}>
-        <ProjectTabs projectId={project.id} />
-        <div style={{ padding: '20px' }}>{children}</div>
-      </div>
+      {children}
     </div>
   )
 }

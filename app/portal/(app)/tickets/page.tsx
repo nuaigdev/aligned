@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { getSessionClient } from '@/lib/portal/session-guard'
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { formatRelative, formatTicketRef, ticketClientCode, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
-import { Plus, Inbox } from 'lucide-react'
+import { Inbox } from 'lucide-react'
 import { EmptyState } from '@/components/dashboard/EmptyState'
 
 export const dynamic = 'force-dynamic'
@@ -31,30 +31,20 @@ export default async function PortalTicketsPage({ searchParams }: { searchParams
         </p>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          <Link href="/portal/tickets" style={chipStyle(!filterStatus)}>All</Link>
-          {Object.entries(TICKET_STATUS_CONFIG).map(([key, cfg]) => (
-            <Link key={key} href={`/portal/tickets?status=${key}`} style={chipStyle(filterStatus === key)}>
-              {cfg.label}
-            </Link>
-          ))}
-        </div>
-        <Link
-          href="/portal/tickets/new"
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 500, color: '#fff', background: 'var(--brand-600)', padding: '8px 14px', borderRadius: '8px', textDecoration: 'none' }}
-        >
-          <Plus size={14} /> New ticket
-        </Link>
+      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+        <Link href="/portal/tickets" style={chipStyle(!filterStatus)}>All</Link>
+        {Object.entries(TICKET_STATUS_CONFIG).map(([key, cfg]) => (
+          <Link key={key} href={`/portal/tickets?status=${key}`} style={chipStyle(filterStatus === key)}>
+            {cfg.label}
+          </Link>
+        ))}
       </div>
 
       {filtered.length === 0 ? (
         <EmptyState
           icon={Inbox}
           title={filterStatus ? 'Nothing here' : 'No tickets yet'}
-          description={filterStatus ? 'Try a different filter, or clear it to see everything.' : "Raise your first ticket and we'll take it from there."}
-          actionLabel={filterStatus ? undefined : 'Raise a ticket'}
-          actionHref={filterStatus ? undefined : '/portal/tickets/new'}
+          description={filterStatus ? 'Try a different filter, or clear it to see everything.' : "Raise your first ticket and we'll take it from there — use New ticket up top."}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

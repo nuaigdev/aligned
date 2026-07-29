@@ -8,6 +8,7 @@ import { getInitials } from '@/lib/utils'
 import { LayoutDashboard, FolderOpen, Users, LogOut, Ticket, UserCog } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 import NotificationBell from './NotificationBell'
+import TicketSearch from './TicketSearch'
 
 interface Props {
   member: { name: string; email: string; role: string } | null
@@ -83,6 +84,7 @@ export default function DashboardHeader({ member }: Props) {
       </nav>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <TicketSearch />
         <NotificationBell />
 
         {member && (
