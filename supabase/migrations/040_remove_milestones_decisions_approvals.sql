@@ -64,11 +64,14 @@ drop policy if exists "documents_delete_admin_or_manager" on documents;
 -- ============================================================
 -- Storage — the 'signed-records' bucket was reserved for a signed-
 -- record PDF export that was never built (@react-pdf/renderer has
--- been removed from package.json). Safe to drop; nothing ever wrote
--- to it.
+-- been removed from package.json). Nothing ever wrote to it, so it's
+-- safe to remove, but Supabase blocks a direct SQL DELETE on
+-- storage.buckets ("Direct deletion from storage tables is not
+-- allowed. Use the Storage API instead.") — this migration only
+-- narrows the read policy below; delete the bucket itself from the
+-- Supabase dashboard (Storage → signed-records → delete) or via the
+-- Storage API/CLI as a separate manual step.
 -- ============================================================
-
-delete from storage.buckets where id = 'signed-records';
 
 drop policy if exists "team_read_documents" on storage.objects;
 create policy "team_read_documents"
