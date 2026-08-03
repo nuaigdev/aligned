@@ -3,25 +3,15 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { createTicketNotifications, getActorName, createClientNotification } from '@/lib/notifications/create'
-import { sendTicketReplyEmail, sendTicketResolvedEmail } from '@/lib/email/index'
+import { sendTicketConfirmationEmail, sendTicketReplyEmail, sendTicketResolvedEmail } from '@/lib/email/index'
+import { getTicketContactRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
 import { ticketClientCode } from '@/lib/utils'
 import type { CreateTicketInput, TicketStatus, TicketPriority, TicketType } from '@/types'
-import type { SupabaseClient } from '@supabase/supabase-js'
 
 async function currentTeamMemberId(): Promise<string | null> {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
   return user?.id ?? null
-}
-
-async function activeClientContactEmails(supabase: SupabaseClient, clientId: string): Promise<string[]> {
-  const { data } = await supabase
-    .from('client_contacts')
-    .select('email')
-    .eq('client_id', clientId)
-    .eq('is_active', true)
-    .is('project_id', null)
-  return (data ?? []).map(c => c.email)
 }
 
 export async function createTicket(
@@ -40,6 +30,8 @@ export async function createTicket(
   const { data: project } = await supabase.from('projects').select('client_id').eq('id', input.project_id).maybeSingle()
   if (!project) return { error: 'That project could not be found.' }
 
+  const ticketType = input.ticket_type || 'client'
+
   const { data: ticket, error } = await supabase
     .from('tickets')
     .insert({
@@ -48,12 +40,12 @@ export async function createTicket(
       title: input.title.trim(),
       description: input.description?.trim() || null,
       category: input.category || 'general',
-      ticket_type: input.ticket_type || 'client',
+      ticket_type: ticketType,
       priority: input.priority || 'medium',
       due_date: input.due_date || null,
       created_by_team_member_id: teamMemberId,
     })
-    .select('id')
+    .select('id, ref_number')
     .single()
 
   if (error || !ticket) {
@@ -71,7 +63,7 @@ export async function createTicket(
   }
 
   const actor = await getActorName(supabase, teamMemberId)
-  const { data: client } = await supabase.from('clients').select('manager_id, name').eq('id', project.client_id).maybeSingle()
+  const { data: client } = await supabase.from('clients').select('manager_id, name, slug').eq('id', project.client_id).maybeSingle()
 
   const recipients = [...(input.assignee_ids ?? [])]
   if (client?.manager_id) recipients.push(client.manager_id)
@@ -83,6 +75,25 @@ export async function createTicket(
     `${actor} logged "${input.title.trim()}" for ${client?.name ?? 'a client'}`,
     ticket.id
   )
+
+  // A team-raised ticket that's still client-visible tells the client about
+  // it the same way a portal-raised one does — they didn't submit it
+  // themselves, so the copy frames it as "logged for you", not "thanks".
+  if (ticketType === 'client') {
+    const [contacts, manager] = await Promise.all([
+      getTicketContactRecipients(supabase, project.client_id, input.project_id),
+      getManagerContact(supabase, client?.manager_id),
+    ])
+    await sendTicketConfirmationEmail({
+      recipients: withManagerCopy(contacts, manager),
+      ticketId: ticket.id,
+      refNumber: ticket.ref_number,
+      title: input.title.trim(),
+      raisedByName: actor,
+      raisedByRole: 'team',
+      clientCode: client?.slug ? ticketClientCode(client.slug) : undefined,
+    })
+  }
 
   revalidatePath('/dashboard/tickets')
   revalidatePath('/portal/tickets')
@@ -110,10 +121,14 @@ export async function updateTicket(
   // A client-raised ticket can never be marked internal — checked here
   // ahead of the write (a clearer error than the DB trigger's, which still
   // backstops this against a direct write). Team-raised tickets can move
-  // freely in either direction.
-  if (patch.ticket_type === 'internal') {
-    const { data: existing } = await supabase.from('tickets').select('created_by_client_name').eq('id', ticketId).maybeSingle()
-    if (existing?.created_by_client_name) {
+  // freely in either direction. Also captures the pre-update type so we can
+  // tell an internal→client flip (the client's first look at this ticket)
+  // apart from a client ticket just staying a client ticket.
+  let previousTicketType: TicketType | undefined
+  if (patch.ticket_type) {
+    const { data: existing } = await supabase.from('tickets').select('created_by_client_name, ticket_type').eq('id', ticketId).maybeSingle()
+    previousTicketType = existing?.ticket_type
+    if (patch.ticket_type === 'internal' && existing?.created_by_client_name) {
       return { error: 'This ticket was raised by the client and can only stay a client ticket.' }
     }
   }
@@ -121,36 +136,63 @@ export async function updateTicket(
   const { error } = await supabase.from('tickets').update(patch).eq('id', ticketId)
   if (error) return { error: error.message }
 
-  if (patch.status) {
+  const becameClientVisible = patch.ticket_type === 'client' && previousTicketType === 'internal'
+
+  if (patch.status || becameClientVisible) {
     const { data: ticket } = await supabase
       .from('tickets')
-      .select('title, ref_number, client_id, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug)')
+      .select('title, ref_number, client_id, project_id, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug, manager_id)')
       .eq('id', ticketId)
       .maybeSingle()
 
     if (ticket) {
       const actor = await getActorName(supabase, teamMemberId)
-      const recipients = [
-        ticket.created_by_team_member_id,
-        ...((ticket.ticket_assignees as any[]) ?? []).map(a => a.team_member_id),
-      ].filter(Boolean) as string[]
+      const clientMeta = ticket.clients as any
+      const clientCode = clientMeta?.slug ? ticketClientCode(clientMeta.slug) : undefined
 
-      await createTicketNotifications(
-        supabase, recipients, teamMemberId, 'ticket_status_changed',
-        'Ticket updated',
-        `${actor} moved "${ticket.title}" to ${patch.status.replace('_', ' ')}`,
-        ticketId
-      )
+      if (patch.status) {
+        const recipients = [
+          ticket.created_by_team_member_id,
+          ...((ticket.ticket_assignees as any[]) ?? []).map(a => a.team_member_id),
+        ].filter(Boolean) as string[]
 
-      if (patch.status === 'resolved') {
-        const emails = await activeClientContactEmails(supabase, ticket.client_id)
-        const clientCode = (ticket.clients as any)?.slug ? ticketClientCode((ticket.clients as any).slug) : undefined
-        await sendTicketResolvedEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, clientCode })
-        await createClientNotification(
-          createServiceRoleClient(), ticket.client_id, 'ticket_resolved',
-          'Ticket resolved', ticket.title,
-          `/portal/tickets/${ticketId}`
+        await createTicketNotifications(
+          supabase, recipients, teamMemberId, 'ticket_status_changed',
+          'Ticket updated',
+          `${actor} moved "${ticket.title}" to ${patch.status.replace('_', ' ')}`,
+          ticketId
         )
+
+        if (patch.status === 'resolved') {
+          const [contacts, manager] = await Promise.all([
+            getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+            getManagerContact(supabase, clientMeta?.manager_id),
+          ])
+          await sendTicketResolvedEmail({
+            recipients: withManagerCopy(contacts, manager),
+            ticketId, refNumber: ticket.ref_number, title: ticket.title, clientCode,
+          })
+          await createClientNotification(
+            createServiceRoleClient(), ticket.client_id, 'ticket_resolved',
+            'Ticket resolved', ticket.title,
+            `/portal/tickets/${ticketId}`
+          )
+        }
+      }
+
+      // The ticket just became visible on the client's portal for the first
+      // time (it was internal until now) — tell them it exists, the same
+      // confirmation a brand-new ticket gets.
+      if (becameClientVisible) {
+        const [contacts, manager] = await Promise.all([
+          getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+          getManagerContact(supabase, clientMeta?.manager_id),
+        ])
+        await sendTicketConfirmationEmail({
+          recipients: withManagerCopy(contacts, manager),
+          ticketId, refNumber: ticket.ref_number, title: ticket.title,
+          raisedByName: actor, raisedByRole: 'team', clientCode,
+        })
       }
     }
   }
@@ -226,7 +268,7 @@ export async function postTicketComment(
 
   const { data: ticket } = await supabase
     .from('tickets')
-    .select('title, ref_number, client_id, ticket_type, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug)')
+    .select('title, ref_number, client_id, project_id, ticket_type, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug, manager_id)')
     .eq('id', ticketId)
     .maybeSingle()
 
@@ -267,9 +309,16 @@ export async function postTicketComment(
     // client's inbox — an internal note must never leak to the client just
     // because we email on every team comment by default.
     if (effectiveVisibleToClient) {
-      const emails = await activeClientContactEmails(supabase, ticket.client_id)
-      const clientCode = (ticket.clients as any)?.slug ? ticketClientCode((ticket.clients as any).slug) : undefined
-      await sendTicketReplyEmail({ toEmails: emails, ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor, clientCode })
+      const clientMeta = ticket.clients as any
+      const clientCode = clientMeta?.slug ? ticketClientCode(clientMeta.slug) : undefined
+      const [contacts, manager] = await Promise.all([
+        getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+        getManagerContact(supabase, clientMeta?.manager_id),
+      ])
+      await sendTicketReplyEmail({
+        recipients: withManagerCopy(contacts, manager),
+        ticketId, refNumber: ticket.ref_number, title: ticket.title, replyBody: body.trim(), actorName: actor, clientCode,
+      })
       await createClientNotification(
         createServiceRoleClient(), ticket.client_id, 'ticket_replied',
         `New reply on ${ticket.title}`, body.trim().slice(0, 140),

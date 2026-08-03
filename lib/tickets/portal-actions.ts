@@ -5,6 +5,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { requireClientSession } from '@/lib/portal/session-guard'
 import { createTicketNotifications } from '@/lib/notifications/create'
 import { sendTicketConfirmationEmail } from '@/lib/email/index'
+import { getTicketContactRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
 import { ticketClientCode } from '@/lib/utils'
 
 export async function createPortalTicket(input: {
@@ -68,20 +69,21 @@ export async function createPortalTicket(input: {
     )
   }
 
-  // Email confirmation to the client's own active contacts.
-  const { data: contacts } = await supabase
-    .from('client_contacts')
-    .select('email')
-    .eq('client_id', session.clientId)
-    .eq('is_active', true)
-    .is('project_id', null)
+  // Email confirmation to the ticket's effective contact list (client
+  // defaults + this project's additions), plus a copy to the client's
+  // assigned Manager.
+  const [contacts, manager] = await Promise.all([
+    getTicketContactRecipients(supabase, session.clientId, input.project_id || null),
+    getManagerContact(supabase, client?.manager_id),
+  ])
 
   await sendTicketConfirmationEmail({
-    toEmails: (contacts ?? []).map(c => c.email),
+    recipients: withManagerCopy(contacts, manager),
     ticketId: ticket.id,
     refNumber: ticket.ref_number,
     title: input.title.trim(),
     raisedByName: input.contact_name.trim(),
+    raisedByRole: 'client',
     clientCode: client?.slug ? ticketClientCode(client.slug) : undefined,
   })
 
