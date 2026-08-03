@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { formatRelative, formatTicketRef, ticketClientCode, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
+import { getMyProjectScope, scopeProjectsQuery } from '@/lib/projects/scope'
 import Link from 'next/link'
 import {
   AlertTriangle, UserX, Ticket, FolderKanban, PartyPopper, CheckCircle2, User, CalendarClock, ArrowRight,
@@ -22,18 +23,31 @@ export default async function DashboardPage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: me }, { data: tickets }, { data: projects }] = await Promise.all([
-    user ? supabase.from('team_members').select('name').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+  // Projects are scoped the same way the Tickets page scopes "my projects"
+  // — a plain member only ever sees projects they're an explicit member
+  // of (or, for a Manager, projects of clients they manage). Tickets stay
+  // open-visibility by design (see CLAUDE.md), so only the projects query
+  // below is scoped — the ticket-derived sections are untouched.
+  const scope = user
+    ? await getMyProjectScope(supabase, user.id)
+    : { isAdmin: false, isManager: false, name: null, projectIds: [], managedClientIds: [] }
+
+  const projectsBaseQuery = supabase
+    .from('projects')
+    .select('id, name, status, updated_at, clients(name)')
+    .order('updated_at', { ascending: false })
+    .limit(6)
+  const scopedProjectsQuery = scopeProjectsQuery(projectsBaseQuery, scope)
+
+  const [{ data: tickets }, { data: projects }] = await Promise.all([
     supabase
       .from('tickets')
       .select('id, ref_number, title, status, priority, due_date, resolved_at, updated_at, clients(name, slug), ticket_assignees(team_member_id)')
       .order('updated_at', { ascending: false }),
-    supabase
-      .from('projects')
-      .select('id, name, status, updated_at, clients(name)')
-      .order('updated_at', { ascending: false })
-      .limit(6),
+    scopedProjectsQuery ? scopedProjectsQuery : Promise.resolve({ data: [] as any[] }),
   ])
+
+  const me = { name: scope.name }
 
   const allTickets = tickets ?? []
   const activeTickets = allTickets.filter(t => t.status === 'open' || t.status === 'in_progress')

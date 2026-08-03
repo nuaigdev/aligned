@@ -1,5 +1,6 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { formatDate } from '@/lib/utils'
+import { getMyProjectScope, scopeProjectsQuery } from '@/lib/projects/scope'
 import Link from 'next/link'
 import { Plus, FolderKanban, FolderOpen, Users, CheckCircle2 } from 'lucide-react'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -11,15 +12,15 @@ export default async function ProjectsPage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: projects }, { data: me }] = await Promise.all([
-    supabase
-      .from('projects')
-      .select('*, clients(name, id), tickets(count)')
-      .order('updated_at', { ascending: false }),
-    user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
-  ])
+  const scope = user
+    ? await getMyProjectScope(supabase, user.id)
+    : { isAdmin: false, isManager: false, name: null, projectIds: [], managedClientIds: [] }
 
-  const canCreate = me?.role === 'admin' || me?.role === 'manager'
+  const baseQuery = supabase.from('projects').select('*, clients(name, id), tickets(count)').order('updated_at', { ascending: false })
+  const scopedQuery = scopeProjectsQuery(baseQuery, scope)
+  const { data: projects } = scopedQuery ? await scopedQuery : { data: [] as any[] }
+
+  const canCreate = scope.isAdmin || scope.isManager
 
   const STATUS_DOT: Record<string, string> = {
     active:          '#3B6D11',
@@ -141,8 +142,8 @@ export default async function ProjectsPage() {
         {total === 0 && (
           <EmptyState
             icon={FolderKanban}
-            title="No projects yet"
-            description={canCreate ? 'Create a project to start tracking milestones, decisions, and documents for a client engagement.' : 'An admin or manager needs to create a project before you can start tracking milestones, decisions, and documents.'}
+            title={canCreate ? 'No projects yet' : "You're not on any projects yet"}
+            description={canCreate ? 'Create a project to start tracking tickets for a client engagement.' : 'Ask an admin or your manager to add you to a project before any tickets show up here.'}
             actionLabel={canCreate ? 'Create your first project' : undefined}
             actionHref={canCreate ? '/dashboard/projects/new' : undefined}
           />
