@@ -67,7 +67,7 @@ export function ticketClientCode(slug: string): string {
 }
 
 export function formatTicketRef(refNumber: number, clientCode?: string): string {
-  const num = String(refNumber).padStart(3, '0')
+  const num = String(refNumber).padStart(4, '0')
   return clientCode ? `${clientCode}-${num}` : `#T-${num}`
 }
 
