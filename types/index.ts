@@ -35,6 +35,7 @@ export type NotificationType =
 export type ClientNotificationType =
   | 'ticket_replied'
   | 'ticket_resolved'
+  | 'ticket_closed'
 
 // ============================================================
 // DATABASE ROW TYPES

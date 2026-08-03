@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { createTicketNotifications, getActorName, createClientNotification } from '@/lib/notifications/create'
-import { sendTicketConfirmationEmail, sendTicketReplyEmail, sendTicketResolvedEmail } from '@/lib/email/index'
+import { sendTicketConfirmationEmail, sendTicketReplyEmail, sendTicketResolvedEmail, sendTicketClosedEmail } from '@/lib/email/index'
 import { getTicketContactRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
 import { ticketClientCode } from '@/lib/utils'
 import type { CreateTicketInput, TicketStatus, TicketPriority, TicketType } from '@/types'
@@ -141,7 +141,7 @@ export async function updateTicket(
   if (patch.status || becameClientVisible) {
     const { data: ticket } = await supabase
       .from('tickets')
-      .select('title, ref_number, client_id, project_id, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug, manager_id)')
+      .select('title, ref_number, client_id, project_id, ticket_type, resolved_at, created_by_team_member_id, ticket_assignees(team_member_id), clients(slug, manager_id)')
       .eq('id', ticketId)
       .maybeSingle()
 
@@ -149,6 +149,9 @@ export async function updateTicket(
       const actor = await getActorName(supabase, teamMemberId)
       const clientMeta = ticket.clients as any
       const clientCode = clientMeta?.slug ? ticketClientCode(clientMeta.slug) : undefined
+      // Internal tickets are invisible to the client — never let a status
+      // change on one leak an email about a ticket they can't even see.
+      const isClientVisible = ticket.ticket_type === 'client'
 
       if (patch.status) {
         const recipients = [
@@ -163,7 +166,7 @@ export async function updateTicket(
           ticketId
         )
 
-        if (patch.status === 'resolved') {
+        if (isClientVisible && patch.status === 'resolved') {
           const [contacts, manager] = await Promise.all([
             getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
             getManagerContact(supabase, clientMeta?.manager_id),
@@ -175,6 +178,26 @@ export async function updateTicket(
           await createClientNotification(
             createServiceRoleClient(), ticket.client_id, 'ticket_resolved',
             'Ticket resolved', ticket.title,
+            `/portal/tickets/${ticketId}`
+          )
+        } else if (isClientVisible && patch.status === 'closed' && !ticket.resolved_at) {
+          // Skipped straight to closed without ever passing through
+          // resolved (sync_ticket_status_timestamps sets resolved_at/
+          // closed_at independently — see migration 006) — the client
+          // hasn't been told anything yet, so tell them now. If it *was*
+          // resolved first, they already got that email; a second one for
+          // the same ticket would just be noise.
+          const [contacts, manager] = await Promise.all([
+            getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+            getManagerContact(supabase, clientMeta?.manager_id),
+          ])
+          await sendTicketClosedEmail({
+            recipients: withManagerCopy(contacts, manager),
+            ticketId, refNumber: ticket.ref_number, title: ticket.title, clientCode,
+          })
+          await createClientNotification(
+            createServiceRoleClient(), ticket.client_id, 'ticket_closed',
+            'Ticket closed', ticket.title,
             `/portal/tickets/${ticketId}`
           )
         }

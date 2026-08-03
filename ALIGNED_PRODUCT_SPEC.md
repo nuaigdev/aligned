@@ -252,24 +252,47 @@ bookmarkable token URL.
 
 ## Email Notifications
 
-Sent via Resend from `NuAIg Aligned <RESEND_FROM_EMAIL>` (`lib/email/index.ts`).
-All three are ticket-triggered; there is no other email category in the product.
+Sent via Resend from `NuAIg Aligned <RESEND_FROM_EMAIL>` (`lib/email/index.ts`). All
+four are ticket-triggered; there is no other email category in the product. Every one
+is personalized — one send per recipient, addressed by name, never a shared multi-`to`
+email — and goes to the ticket's effective contact list (client defaults + that
+ticket's project-level additions) plus a copy to the client's assigned Manager.
+There is deliberately no non-production guard: setting `RESEND_API_KEY` in any
+environment makes that environment send real email to real client contacts.
 
 ### Ticket confirmation
-- Sent when: a ticket is created (currently only wired up on the portal-raise
-  path — see `CLAUDE.md`'s TODO list for the team-side gap)
-- To: the client's contacts
+- Sent when: a ticket is created for the client — whether the client raised it
+  themselves on the portal, a team member logged it on their behalf, or a
+  team-raised ticket is reclassified from internal to client (their first
+  chance to see it)
+- To: the ticket's effective contacts + the client's Manager
 - Content: ticket reference + title, link to the portal ticket
 
 ### Team reply
 - Sent when: a team member marks a comment "visible to client"
-- To: the client's contacts
+- To: the ticket's effective contacts + the client's Manager
 - Content: who replied, the reply body, link to the portal ticket
+- Not idempotency-guarded — distinct replies close together are legitimate
 
 ### Resolved
 - Sent when: a ticket's status changes to `resolved`
-- To: the client's contacts
+- To: the ticket's effective contacts + the client's Manager
 - Content: ticket reference + title, link to the portal ticket
+
+### Closed (without ever being resolved)
+- Sent when: a ticket's status changes straight to `closed` without ever
+  passing through `resolved` first — if it was resolved first, the client
+  already got that email and a second one would be noise
+- To: the ticket's effective contacts + the client's Manager
+- Content: ticket reference + title, link to the portal ticket
+
+### Delivery log
+Every attempted send (confirmation/reply/resolved/closed) is logged to
+`ticket_emails` (migration 041) — recipients, status (`sent`/`partial`/`failed`),
+and error detail on failure. Confirmation/resolved/closed also check this table
+before firing, so a double-click or a retried Server Action can't double-send the
+same event for the same ticket. Nothing is logged, and no such check runs, when
+`RESEND_API_KEY` is unset.
 
 ---
 
@@ -280,6 +303,7 @@ There is no formal sign-off or immutable-record concept in the product anymore
 a durable record:
 - Every ticket comment, with author and timestamp, kept forever (comments can
   be edited but not silently — `edited_at` is tracked)
+- Every attempted ticket email, in `ticket_emails` (see above)
 - `reopened_count` on a ticket, so a ticket that bounced back and forth still
   shows that history
 - In-app notifications (team side) and ticket emails (client side) as a
@@ -300,6 +324,7 @@ a durable record:
 - `documents` — files in Supabase Storage; ticket attachments use `ticket_id`
 - `team_members` — extends Supabase Auth users
 - `notifications` / `client_notifications` — team in-app / client email triggers
+- `ticket_emails` — audit log of every attempted ticket email + idempotency guard
 
 ### Key constraints
 - `tickets.ref_number` — unique, from a single global sequence

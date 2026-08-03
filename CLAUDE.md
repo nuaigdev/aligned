@@ -146,9 +146,35 @@ behavior change.
 - Team side: real in-app notifications (`notifications` table + Supabase
   Realtime + the bell in `Sidebar.tsx`/`useNotifications.tsx`), because team
   members have real Supabase Auth sessions.
-- Client side: email only (`lib/email/index.ts` — ticket confirmation, team
-  reply, resolution), sent to the client's active `client_contacts`, because
-  the shared login has no individual session to mark "read" against.
+- Client side: email (`lib/email/index.ts`) is the primary channel — ticket
+  confirmation (including when a team member logs a client-visible ticket on
+  the client's behalf, or reclassifies one from internal to client),
+  team reply, resolved, and closed-without-ever-being-resolved (see below).
+  There's also a lightweight `client_notifications`-backed bell in the
+  portal header (`PortalNotificationBell.tsx`), polled rather than
+  Realtime-driven since the shared login isn't a Supabase Auth session.
+  Every ticket email is sent as one personalized send per recipient (never
+  a shared multi-`to` send) to the ticket's effective contact list
+  (`getTicketContactRecipients`, see Contact management below) plus a copy
+  to the client's assigned Manager (`getManagerContact`/`withManagerCopy`,
+  `lib/tickets/contacts.ts`). Every attempted send is logged to
+  `ticket_emails` (migration 041), which also backs an idempotency guard —
+  confirmation/resolved/closed each check for a recent send of the same
+  kind on the same ticket before firing again; reply is deliberately not
+  guarded that way, since two distinct replies close together are
+  legitimate. Nothing is logged and no DB round trip happens when
+  `RESEND_API_KEY` is unset — see rule 11.
+- **Closed without ever being resolved**: `sync_ticket_status_timestamps`
+  (migration 006) sets `resolved_at`/`closed_at` independently, so a ticket
+  can go straight from open/in_progress to closed without ever passing
+  through resolved. `updateTicket()` sends the "closed" email only in that
+  specific case (`resolved_at` was still null) — if it went through
+  resolved first, the client already got that email and a second one would
+  be noise.
+- There is **no non-production guard** on any of this — a deliberate
+  product decision. The moment `RESEND_API_KEY` is set in an environment,
+  that environment sends real email to real client contacts. Treat the key
+  as live everywhere you put it, including local dev and preview deploys.
 
 ### Team roles & hierarchy
 
@@ -188,7 +214,7 @@ not just the client-level defaults.
 | Database | Supabase (PostgreSQL) | See migration file |
 | Auth | Supabase Auth | Team only — clients don't have accounts |
 | Storage | Supabase Storage | Bucket: `project-documents` |
-| Email | Resend | Ticket confirmation/reply/resolved — see `lib/email/index.ts` |
+| Email | Resend | Ticket confirmation/reply/resolved/closed, personalized per recipient, logged to `ticket_emails` — see `lib/email/index.ts` |
 | Deployment | Vercel | Free tier |
 | Styling | Tailwind CSS + inline styles | See design system below. The codebase's real convention is **inline `style={{}}` everywhere** — the `.card`/`.pill`/`.btn` utility classes in `globals.css` exist but aren't actually used by any component; match the inline-style convention, not the unused classes. |
 | Client auth | `bcryptjs` + `jose` | `lib/auth/client-session*.ts` — portal login, NOT Supabase Auth (see Access model) |
@@ -218,16 +244,17 @@ NEXTAUTH_SECRET=              ← signs the client portal session JWT (lib/auth/
 
 The migrations folder is one clean, dependency-ordered sequence: `001` built the
 original schema (team/roles → clients/login → projects → tickets → notifications/
-settings → RLS → storage), and `020`–`040` are incremental changes on top of it
-(RBAC tightening, ticket types, project membership, ticket search, and — as of `040`
-— removing the Milestones/Decisions/Approvals schema that the product no longer has).
+settings → RLS → storage), and `020`–`041` are incremental changes on top of it
+(RBAC tightening, ticket types, project membership, ticket search, removing the
+Milestones/Decisions/Approvals schema the product no longer has as of `040`, and a
+ticket email audit/idempotency log as of `041`).
 Chronos's conventions are followed throughout: `CREATE TABLE IF NOT EXISTS`, `DROP
 POLICY IF EXISTS` before every `CREATE POLICY`, enum creation wrapped in `DO $$ ...
 EXCEPTION WHEN duplicate_object`, one `SECURITY DEFINER STABLE` helper per reusable RLS
 predicate. This assumes a **fresh Supabase project** — there is no migration path from
 the old schema, and none is needed (no prior production data to preserve).
 
-Run `supabase/migrations/001` through `040` **in order** in the Supabase SQL
+Run `supabase/migrations/001` through `041` **in order** in the Supabase SQL
 editor (or via the CLI). The storage bucket (`project-documents`) and its access
 policies are created **live by migration `019`** — no manual dashboard step needed.
 (Migration `019` also created a `signed-records` bucket for a PDF export that was
@@ -300,6 +327,7 @@ lib/
   tickets/
     team-actions.ts        ← Server Actions: dashboard-side ticket CRUD (RLS-governed), searchTickets
     portal-actions.ts      ← Server Actions: client-side ticket create/comment (service role + manual client_id checks)
+    contacts.ts             ← getTicketContactRecipients / getManagerContact / withManagerCopy — shared ticket-email recipient resolution
   projects/
     actions.ts             ← createProject (auto-adds creator as first project_member) / deleteProject
     members-actions.ts     ← addProjectMember / removeProjectMember (RLS: can_manage_project_members)
@@ -318,7 +346,7 @@ middleware.ts             ← Auth guard for /dashboard (Supabase session) AND /
 ## What is built vs TODO
 
 ### Built
-- [x] Database schema — full rebuild, `001`–`040`, fresh-project ready (see Database setup)
+- [x] Database schema — full rebuild, `001`–`041`, fresh-project ready (see Database setup)
 - [x] TypeScript types
 - [x] Supabase client helpers (browser, server, service role)
 - [x] Team auth middleware (Supabase Auth) + client portal session middleware (JWT)
@@ -338,7 +366,7 @@ middleware.ts             ← Auth guard for /dashboard (Supabase session) AND /
 
 ### TODO
 - [ ] Real-time updates on the client portal (currently Server Action + `revalidatePath`, not Supabase Realtime — the client session isn't a Supabase Auth principal, so Realtime's RLS-gated subscriptions don't apply there)
-- [ ] Ticket email hardening — see the "client email" plan for the current gap list (contact resolution missing project-level contacts, no delivery log, team-created tickets don't yet email the client)
+- [ ] Ticket email delivery webhooks (Resend bounce/complaint → `ticket_emails.status`, auto-flag a bouncing contact inactive) — deferred, not forgotten. There is deliberately **no** non-production send guard (explicit product decision) — every environment sends real email the moment `RESEND_API_KEY` is set, so treat that key as live in every environment you put it in.
 
 ---
 
@@ -446,7 +474,7 @@ canonical source for these — use them rather than re-declaring the mapping.)
    handle both — don't assume every row has a team-member author.
 
 10. **New migrations continue the `NNN_description.sql` sequence** (currently
-    through `040`) — one concern per file, idempotent (`IF NOT EXISTS`,
+    through `041`) — one concern per file, idempotent (`IF NOT EXISTS`,
     `DROP POLICY IF EXISTS` before `CREATE POLICY`), and any RLS predicate
     used by more than one table extracted into its own `SECURITY DEFINER
     STABLE` SQL function first. Don't go back and edit an already-numbered
