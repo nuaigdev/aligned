@@ -341,36 +341,30 @@ export interface TicketSearchResult {
 /**
  * Universal ticket search (header search box) — tickets are viewable by any
  * active team member regardless of project (migration 038), so this
- * searches the whole system, not just the caller's own projects. Matches a
- * ticket number (no "#" required — any digits in the query) and/or a title
- * substring; an exact ref match is surfaced first.
+ * searches the whole system, not just the caller's own projects.
+ *
+ * Backed by the search_tickets() SQL function (migration 039), which does
+ * the ranking in a single indexed round trip: an identifier match (client
+ * code and/or ticket number, matched as a prefix, case-insensitive — "math",
+ * "MATH-017", and "17" all resolve) ranks above a plain title match, and an
+ * exact identifier match ranks above a partial one.
  */
 export async function searchTickets(query: string): Promise<TicketSearchResult[]> {
   const trimmed = query.trim()
   if (!trimmed) return []
 
   const supabase = createSupabaseServerClient()
-  const digits = trimmed.replace(/\D/g, '')
+  const { data, error } = await supabase.rpc('search_tickets', { p_query: trimmed, p_limit: 8 })
+  if (error) {
+    console.error('searchTickets failed:', error)
+    return []
+  }
 
-  const [{ data: byRef }, { data: byTitle }] = await Promise.all([
-    digits
-      ? supabase.from('tickets').select('id, ref_number, title, clients(name, slug)').eq('ref_number', parseInt(digits, 10)).limit(1)
-      : Promise.resolve({ data: [] as any[] }),
-    supabase.from('tickets').select('id, ref_number, title, clients(name, slug)').ilike('title', `%${trimmed}%`).order('updated_at', { ascending: false }).limit(8),
-  ])
-
-  const seen = new Set<string>()
-  const merged = [...(byRef ?? []), ...(byTitle ?? [])].filter((t: any) => {
-    if (seen.has(t.id)) return false
-    seen.add(t.id)
-    return true
-  })
-
-  return merged.slice(0, 8).map((t: any) => ({
+  return (data ?? []).map((t: any) => ({
     id: t.id,
     ref_number: t.ref_number,
     title: t.title,
-    client_name: t.clients?.name ?? null,
-    client_slug: t.clients?.slug ?? null,
+    client_name: t.client_name,
+    client_slug: t.client_slug,
   }))
 }

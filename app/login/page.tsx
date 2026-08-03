@@ -5,7 +5,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import {
-  Ticket, FileSignature, Building2, BellRing, ShieldCheck, Layers,
+  Ticket, Search, Building2, BellRing, ShieldCheck, Users,
 } from 'lucide-react'
 import { Logo } from '@/components/Logo'
 
@@ -13,17 +13,12 @@ const FEATURES = [
   {
     icon: Ticket,
     title: 'Tickets that route themselves',
-    body: 'Clients raise issues from the portal; their assigned Manager triages and hands each one to the right person automatically.',
-  },
-  {
-    icon: FileSignature,
-    title: 'Approvals that actually hold',
-    body: 'The first signature locks a decision or milestone. Everyone else sees exactly who signed and when — no more "we never agreed to that."',
+    body: 'Clients raise issues from the portal; the project’s team triages, assigns, and works each one through to resolution.',
   },
   {
     icon: Building2,
     title: 'A portal your clients respect',
-    body: 'One login, a clean view of every project, ticket, and decision — a professional front door instead of an email thread.',
+    body: 'One login, a live view of every ticket across their projects — a professional front door instead of an email thread.',
   },
   {
     icon: BellRing,
@@ -31,14 +26,19 @@ const FEATURES = [
     body: 'Real-time notifications keep your team in the loop the moment a ticket is assigned, commented on, or resolved.',
   },
   {
-    icon: ShieldCheck,
-    title: 'A record you can stand behind',
-    body: 'Every milestone, decision, and signature is timestamped and kept — a full audit trail, always.',
+    icon: Search,
+    title: 'Find any ticket in seconds',
+    body: 'Search by ticket number or keyword from anywhere in the dashboard — every result one click from the full history.',
   },
   {
-    icon: Layers,
-    title: 'One system, not five spreadsheets',
-    body: 'Tickets, milestones, decisions, and documents live together instead of scattered across tools.',
+    icon: ShieldCheck,
+    title: 'A record you can stand behind',
+    body: 'Every comment, status change, and reassignment is timestamped and kept — a full history on every ticket, always.',
+  },
+  {
+    icon: Users,
+    title: 'The right people, on the right projects',
+    body: 'Project teams control who can act on a ticket, while any team member can still find and read one — nothing hidden, nothing crossed.',
   },
 ]
 
@@ -91,13 +91,12 @@ export default function LoginPage() {
             letterSpacing: '-0.02em',
             margin: '32px 0 12px',
           }}>
-            Every decision, milestone,<br />and ticket — in one place.
+            Every client ticket — tracked,<br />triaged, and closed out.
           </h1>
           <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '480px', marginBottom: '40px' }}>
-            Aligned is NuAIg's platform for running client engagements: an
-            auditable record of every decision, a ticketing system your clients
-            actually want to use, and a portal that makes NuAIg look as sharp as
-            the work itself.
+            Aligned is NuAIg's platform for running client engagements: a
+            ticketing system your clients actually want to use, and a portal
+            that makes NuAIg look as sharp as the work itself.
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>

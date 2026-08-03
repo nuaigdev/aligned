@@ -1,7 +1,10 @@
 import { createSupabaseServerClient } from '@/lib/supabase/server'
-import { formatRelative, TICKET_STATUS_CONFIG } from '@/lib/utils'
+import { formatRelative, formatTicketRef, ticketClientCode, TICKET_STATUS_CONFIG, TICKET_PRIORITY_COLOR } from '@/lib/utils'
 import Link from 'next/link'
-import { AlertTriangle, UserX, FileSignature, Ticket, FolderKanban, PartyPopper } from 'lucide-react'
+import {
+  AlertTriangle, UserX, Ticket, FolderKanban, PartyPopper, CheckCircle2, User, CalendarClock, ArrowRight,
+} from 'lucide-react'
+import { StatCard } from '@/components/dashboard/StatCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,39 +15,58 @@ function greeting(): string {
   return 'Good evening'
 }
 
+const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
+const STATUS_ORDER = ['open', 'in_progress', 'resolved', 'closed'] as const
+
 export default async function DashboardPage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: me }, { data: tickets }, { data: projects }, { data: pendingApprovals }] = await Promise.all([
+  const [{ data: me }, { data: tickets }, { data: projects }] = await Promise.all([
     user ? supabase.from('team_members').select('name').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
     supabase
       .from('tickets')
-      .select('id, ref_number, title, status, priority, updated_at, clients(name), ticket_assignees(count)')
+      .select('id, ref_number, title, status, priority, due_date, resolved_at, updated_at, clients(name, slug), ticket_assignees(team_member_id)')
       .order('updated_at', { ascending: false }),
     supabase
       .from('projects')
       .select('id, name, status, updated_at, clients(name)')
       .order('updated_at', { ascending: false })
       .limit(6),
-    supabase.from('approval_links').select('id').eq('status', 'pending'),
   ])
 
   const allTickets = tickets ?? []
   const activeTickets = allTickets.filter(t => t.status === 'open' || t.status === 'in_progress')
   const urgentTickets = activeTickets.filter(t => t.priority === 'urgent')
-  const unassignedTickets = activeTickets.filter(t => ((t.ticket_assignees as any)?.[0]?.count ?? 0) === 0)
-  const pendingCount = pendingApprovals?.length ?? 0
+  const unassignedTickets = activeTickets.filter(t => ((t.ticket_assignees as any[]) ?? []).length === 0)
 
-  // A single prioritized "needs you" feed instead of separate stat grids —
-  // urgent tickets first, then unassigned ones (deduped), then a rollup for
-  // pending approvals (which don't have one single obvious destination page).
-  type AttentionItem = { key: string; label: string; sublabel: string; href: string; tone: 'danger' | 'warning' | 'info' }
+  const myId = user?.id
+  const myTickets = myId
+    ? activeTickets
+        .filter(t => ((t.ticket_assignees as any[]) ?? []).some(a => a.team_member_id === myId))
+        .sort((a, b) => (PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority]) || (new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()))
+    : []
+
+  const openCount = allTickets.filter(t => t.status === 'open').length
+  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const resolvedThisWeek = allTickets.filter(t => t.resolved_at && new Date(t.resolved_at).getTime() >= weekAgo).length
+
+  const statusCounts = STATUS_ORDER.map(status => ({ status, count: allTickets.filter(t => t.status === status).length }))
+  const statusTotal = allTickets.length
+
+  function isOverdue(dueDate: string | null): boolean {
+    return !!dueDate && new Date(dueDate) < new Date(new Date().toDateString())
+  }
+
+  // A single prioritized "needs you" feed — urgent tickets first, then
+  // unassigned ones (deduped). Approvals are gone: milestones/decisions are
+  // paused, so approval_links no longer has a live source to point at.
+  type AttentionItem = { key: string; label: string; sublabel: string; href: string; tone: 'danger' | 'warning' }
   const seen = new Set<string>()
   const attention: AttentionItem[] = []
 
   for (const t of urgentTickets) {
-    if (attention.length >= 6) break
+    if (attention.length >= 5) break
     seen.add(t.id)
     attention.push({
       key: t.id, label: t.title, href: `/dashboard/tickets/${t.id}`,
@@ -52,29 +74,24 @@ export default async function DashboardPage() {
     })
   }
   for (const t of unassignedTickets) {
-    if (attention.length >= 6 || seen.has(t.id)) continue
+    if (attention.length >= 5 || seen.has(t.id)) continue
     attention.push({
       key: t.id, label: t.title, href: `/dashboard/tickets/${t.id}`,
       sublabel: `${(t.clients as any)?.name ?? 'Unknown client'} · Unassigned`, tone: 'warning',
     })
   }
-  if (pendingCount > 0) {
-    attention.push({
-      key: 'approvals', label: `${pendingCount} approval${pendingCount === 1 ? '' : 's'} awaiting client sign-off`,
-      href: '/dashboard/projects', sublabel: 'Sent to clients, nothing signed yet', tone: 'info',
-    })
-  }
 
   // One merged, time-ordered activity stream instead of two separate
   // "recent tickets" / "recent projects" lists.
-  type ActivityItem = { key: string; kind: 'ticket' | 'project'; title: string; sublabel: string; date: string; href: string; status: string }
+  type ActivityItem = { key: string; kind: 'ticket' | 'project'; title: string; ref: string | null; sublabel: string; date: string; href: string; status: string }
   const activity: ActivityItem[] = [
     ...allTickets.slice(0, 8).map(t => ({
       key: `ticket-${t.id}`, kind: 'ticket' as const, title: t.title,
+      ref: formatTicketRef(t.ref_number, (t.clients as any)?.slug ? ticketClientCode((t.clients as any).slug) : undefined),
       sublabel: (t.clients as any)?.name ?? '', date: t.updated_at, href: `/dashboard/tickets/${t.id}`, status: t.status,
     })),
     ...(projects ?? []).map(p => ({
-      key: `project-${p.id}`, kind: 'project' as const, title: p.name,
+      key: `project-${p.id}`, kind: 'project' as const, title: p.name, ref: null,
       sublabel: (p.clients as any)?.name ?? '', date: p.updated_at, href: `/dashboard/projects/${p.id}`, status: p.status,
     })),
   ]
@@ -84,66 +101,213 @@ export default async function DashboardPage() {
   const toneStyle = {
     danger:  { bg: 'var(--danger-bg)', color: 'var(--danger-text)' },
     warning: { bg: 'var(--warning-bg)', color: 'var(--warning-text)' },
-    info:    { bg: 'var(--info-bg)', color: 'var(--info-text)' },
   }
 
   return (
     <div>
-      <div className="animate-in" style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
-          {greeting()}{me?.name ? `, ${me.name.split(' ')[0]}` : ''}
-        </h1>
-        <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-          {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-        </p>
+      <div className="animate-in" style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px' }}>
+        <div>
+          <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
+            {greeting()}{me?.name ? `, ${me.name.split(' ')[0]}` : ''}
+          </h1>
+          <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
+            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+          </p>
+        </div>
+        <Link
+          href="/dashboard/tickets"
+          className="hover-lift"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px', flexShrink: 0,
+            background: 'var(--brand-600)', color: '#fff', borderRadius: '8px', fontSize: '13px', fontWeight: 500, textDecoration: 'none',
+          }}
+        >
+          + New ticket
+        </Link>
       </div>
 
-      {/* Needs your attention */}
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
-          Needs your attention
+      {/* Stat tiles */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '24px' }}>
+        <StatCard icon={User} label="Assigned to me" value={myTickets.length} accent="var(--brand-600)" href="/dashboard/tickets" delayMs={0} />
+        <StatCard icon={Ticket} label="Open" value={openCount} accent="#0C447C" href="/dashboard/tickets" delayMs={40} />
+        <StatCard icon={AlertTriangle} label="Urgent" value={urgentTickets.length} accent="#A32D2D" href="/dashboard/tickets" delayMs={80} />
+        <StatCard icon={CheckCircle2} label="Resolved this week" value={resolvedThisWeek} accent="#3B6D11" href="/dashboard/tickets" delayMs={120} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 320px', gap: '20px', marginBottom: '24px', alignItems: 'start' }}>
+        {/* Left column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', minWidth: 0 }}>
+          <div>
+            <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+              Needs your attention
+            </div>
+
+            {attention.length === 0 ? (
+              <div className="animate-in" style={{
+                display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 18px',
+                background: 'var(--success-bg)', borderRadius: '10px', color: 'var(--success-text)',
+              }}>
+                <PartyPopper size={18} />
+                <span style={{ fontSize: '13px', fontWeight: 500 }}>Nothing urgent or unassigned right now. You're caught up.</span>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {attention.map((item, i) => {
+                  const tone = toneStyle[item.tone]
+                  return (
+                    <Link
+                      key={item.key}
+                      href={item.href}
+                      className="hover-card animate-in"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
+                        background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px',
+                        textDecoration: 'none', animationDelay: `${i * 30}ms`,
+                      }}
+                    >
+                      <div style={{
+                        width: '30px', height: '30px', borderRadius: '8px', flexShrink: 0,
+                        background: tone.bg, color: tone.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {item.tone === 'danger' ? <AlertTriangle size={14} /> : <UserX size={14} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {item.label}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '1px' }}>{item.sublabel}</div>
+                      </div>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Assigned to me
+              </div>
+              {myTickets.length > 0 && (
+                <Link href="/dashboard/tickets" style={{ fontSize: '11px', color: 'var(--brand-600)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                  View board <ArrowRight size={11} />
+                </Link>
+              )}
+            </div>
+
+            {myTickets.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', fontSize: '13px', color: 'var(--text-tertiary)' }}>
+                Nothing assigned to you right now.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                {myTickets.slice(0, 6).map((t, i) => {
+                  const overdue = isOverdue(t.due_date)
+                  return (
+                    <Link
+                      key={t.id}
+                      href={`/dashboard/tickets/${t.id}`}
+                      className="hover-card animate-in"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: '10px', padding: '9px 12px',
+                        background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '8px',
+                        textDecoration: 'none', animationDelay: `${i * 25}ms`,
+                      }}
+                    >
+                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', flexShrink: 0, background: TICKET_PRIORITY_COLOR[t.priority] }} />
+                      <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-geist-mono, monospace)', flexShrink: 0 }}>
+                        {formatTicketRef(t.ref_number, (t.clients as any)?.slug ? ticketClientCode((t.clients as any).slug) : undefined)}
+                      </span>
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.title}
+                      </span>
+                      {overdue && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--danger-bg)', color: 'var(--danger-text)', fontWeight: 500, flexShrink: 0 }}>
+                          <CalendarClock size={10} /> Overdue
+                        </span>
+                      )}
+                      <span style={{
+                        fontSize: '10px', padding: '2px 8px', borderRadius: '10px', flexShrink: 0, fontWeight: 500,
+                        background: TICKET_STATUS_CONFIG[t.status]?.bg, color: TICKET_STATUS_CONFIG[t.status]?.color,
+                      }}>
+                        {TICKET_STATUS_CONFIG[t.status]?.label ?? t.status}
+                      </span>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        {attention.length === 0 ? (
-          <div className="animate-in" style={{
-            display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 18px',
-            background: 'var(--success-bg)', borderRadius: '10px', color: 'var(--success-text)',
-          }}>
-            <PartyPopper size={18} />
-            <span style={{ fontSize: '13px', fontWeight: 500 }}>Nothing urgent, unassigned, or waiting on a signature. You're caught up.</span>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-            {attention.map((item, i) => {
-              const tone = toneStyle[item.tone]
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  className="hover-card animate-in"
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
-                    background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px',
-                    textDecoration: 'none', animationDelay: `${i * 30}ms`,
-                  }}
-                >
-                  <div style={{
-                    width: '30px', height: '30px', borderRadius: '8px', flexShrink: 0,
-                    background: tone.bg, color: tone.color, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {item.tone === 'danger' ? <AlertTriangle size={14} /> : item.tone === 'warning' ? <UserX size={14} /> : <FileSignature size={14} />}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.label}
+        {/* Right column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="animate-in" style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '12px', padding: '16px' }}>
+            <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '12px' }}>
+              Tickets by status
+            </div>
+
+            {statusTotal === 0 ? (
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>No tickets yet.</div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', height: '10px', borderRadius: '5px', overflow: 'hidden', gap: '2px', background: 'var(--bg-tertiary)' }}>
+                  {statusCounts.filter(s => s.count > 0).map(s => (
+                    <div
+                      key={s.status}
+                      title={`${TICKET_STATUS_CONFIG[s.status]?.label}: ${s.count}`}
+                      style={{ flex: s.count, background: TICKET_STATUS_CONFIG[s.status]?.color, borderRadius: '3px' }}
+                    />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginTop: '14px' }}>
+                  {statusCounts.map(s => (
+                    <div key={s.status} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', flexShrink: 0, background: TICKET_STATUS_CONFIG[s.status]?.color }} />
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', flex: 1 }}>{TICKET_STATUS_CONFIG[s.status]?.label}</span>
+                      <span style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>{s.count}</span>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '1px' }}>{item.sublabel}</div>
-                  </div>
-                </Link>
-              )
-            })}
+                  ))}
+                </div>
+              </>
+            )}
           </div>
-        )}
+
+          <div className="animate-in" style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '12px', padding: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Projects
+              </div>
+              <Link href="/dashboard/projects" style={{ fontSize: '11px', color: 'var(--brand-600)', textDecoration: 'none' }}>
+                View all
+              </Link>
+            </div>
+
+            {(projects ?? []).length === 0 ? (
+              <div style={{ fontSize: '12px', color: 'var(--text-tertiary)' }}>No projects yet.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                {(projects ?? []).slice(0, 5).map(p => (
+                  <Link
+                    key={p.id}
+                    href={`/dashboard/projects/${p.id}`}
+                    className="hover-card"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px',
+                      borderRadius: '7px', textDecoration: 'none',
+                    }}
+                  >
+                    <FolderKanban size={13} color="var(--text-tertiary)" style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: '12px', color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.name}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Unified activity stream */}
@@ -177,6 +341,11 @@ export default async function DashboardPage() {
                 }}>
                   {item.kind === 'ticket' ? <Ticket size={12} /> : <FolderKanban size={12} />}
                 </div>
+                {item.ref && (
+                  <span style={{ fontSize: '11px', color: 'var(--text-tertiary)', fontFamily: 'var(--font-geist-mono, monospace)', flexShrink: 0 }}>
+                    {item.ref}
+                  </span>
+                )}
                 <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {item.title}
                 </span>
