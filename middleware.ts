@@ -86,7 +86,6 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // /sign/[approvalToken] stays public — one-time email link, no session at all.
   return response
 }
 

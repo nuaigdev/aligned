@@ -33,9 +33,9 @@ export async function createClient(name: string): Promise<{ id: string } | { err
 
 /**
  * Deletes the client and, via ON DELETE CASCADE, every project, ticket,
- * contact, milestone, decision, document, and approval link that belongs
- * to it. There is no undo — the confirmation burden lives in the UI
- * (DeleteConfirmButton requires typing the client's name).
+ * contact, and document that belongs to it. There is no undo — the
+ * confirmation burden lives in the UI (DeleteConfirmButton requires typing
+ * the client's name).
  */
 export async function deleteClient(clientId: string): Promise<{ ok: true } | { error: string }> {
   const check = await requireTeamRole(['admin'])

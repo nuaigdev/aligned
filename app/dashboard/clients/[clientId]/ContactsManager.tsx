@@ -57,7 +57,7 @@ export default function ContactsManager({
   }
 
   async function handleRemove(contact: ClientContact) {
-    if (!confirm(`Remove ${contact.name} from default contacts? They will no longer receive approval emails for new projects.`)) return
+    if (!confirm(`Remove ${contact.name} from default contacts? They will no longer receive ticket email updates.`)) return
     setRemoving(contact.id)
 
     const result = await removeClientContact(clientId, contact.id)

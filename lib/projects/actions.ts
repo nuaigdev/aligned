@@ -49,10 +49,11 @@ export async function createProject(input: {
 }
 
 /**
- * Deletes the project. Milestones/decisions/documents/approval links for it
- * cascade-delete too (ON DELETE CASCADE). Tickets do NOT — a ticket's
- * project_id is optional and ON DELETE SET NULL, so tickets survive under
- * the client with no project link rather than disappearing.
+ * Deletes the project. project_members and ticket attachments filed
+ * directly against it cascade-delete too (ON DELETE CASCADE). Tickets do
+ * NOT — a ticket's project_id is optional and ON DELETE SET NULL, so
+ * tickets survive under the client with no project link rather than
+ * disappearing.
  */
 export async function deleteProject(projectId: string): Promise<{ ok: true } | { error: string }> {
   const check = await requireTeamRole(['admin', 'manager'])

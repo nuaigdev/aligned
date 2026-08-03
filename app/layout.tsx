@@ -7,7 +7,7 @@ import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Aligned — NuAIg',
-  description: 'Project decision and milestone management platform',
+  description: 'Client ticketing platform',
   robots: 'noindex, nofollow', // internal tool
   icons: { icon: '/logo.png' },
 }
@@ -46,7 +46,7 @@ export default function RootLayout({
               laptop or desktop computer for the full experience.
             </p>
             <p className="mobile-block__sub">
-              For approvals — check your email and open the sign link on a desktop browser.
+              Log in from a laptop or desktop to view and reply to tickets.
             </p>
           </div>
         </div>

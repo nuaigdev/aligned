@@ -34,29 +34,6 @@ export async function getActorName(supabase: SupabaseClient, teamMemberId: strin
 }
 
 /**
- * Team notifications not tied to a ticket (a decision or milestone the
- * client just acted on) — carries its own link_path since there's no
- * ticket_id to derive an href from. NotificationBell.tsx prefers
- * link_path over the ticket_id-based href when it's set.
- */
-export async function createTeamNotifications(
-  supabase: SupabaseClient,
-  recipientIds: string[],
-  actorId: string | null,
-  type: NotificationType,
-  title: string,
-  body: string,
-  linkPath: string
-) {
-  const targets = Array.from(new Set(recipientIds)).filter(id => id && id !== actorId)
-  if (targets.length === 0) return
-
-  await supabase.from('notifications').insert(
-    targets.map(team_member_id => ({ team_member_id, type, title, body, link_path: linkPath }))
-  )
-}
-
-/**
  * Client-facing notification — see migration 032. Always written via
  * the service-role client (the portal isn't a Supabase Auth session).
  */

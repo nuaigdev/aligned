@@ -7,65 +7,56 @@ Read this entirely before making any changes.
 
 ## What this product is
 
-Aligned is an internal project management platform built by **NuAIg** for managing
-client projects. The core problem it solves: clients say "we never agreed to that" or
-"we don't remember that decision." This platform creates an auditable, signed record of
-every decision and milestone, with a read-only portal for clients.
+Aligned is an internal ticketing platform built by **NuAIg** for running client support
+and requests. Clients log into a portal, raise tickets, and see them through to
+resolution with their assigned project's team — all in one auditable thread instead of
+scattered across email.
 
-**Current focus: Ticketing only.** The product is deliberately scoped down to
-Clients → Projects → Tickets for now — Milestones, Decisions, and the standalone
-project-level Documents panel are paused (routes redirect away, nav links removed)
-while Ticketing is built out. None of that code was deleted; see "Paused features"
-below for exactly what's off and how to bring it back.
+**The product is Ticketing, full stop.** Aligned previously also covered Milestones,
+Decisions, a standalone project-level Documents panel, and an email-link approval/
+sign-off flow. All of that has been removed — not paused, not redirected, actually
+deleted from the codebase and torn down from the database (migration `040`). If you're
+looking for that code, it's gone; don't resurrect it piecemeal without a real product
+decision to bring the feature back, since the schema, RLS, routes, email templates, and
+types were all deliberately removed together.
 
 ---
 
 ## Key design decisions (do not change without good reason)
 
-### Access model — three distinct surfaces
+### Access model — two distinct surfaces
 
-| Surface | Who | How accessed | Can sign? |
-|---|---|---|---|
-| `/dashboard/*` | NuAIg team | Supabase Auth (email + password) | N/A |
-| `/portal/*` | Client org | **Session login** — one shared login id + password per client company (`clients.login_id`/`password_hash`, verified in `/portal/login`, session is a `jose`-signed JWT cookie — see `lib/auth/client-session*.ts`) | **No** |
-| `/sign/[approvalToken]` | Named individual | One-time email link | **Yes** |
+| Surface | Who | How accessed |
+|---|---|---|
+| `/dashboard/*` | NuAIg team | Supabase Auth (email + password) |
+| `/portal/*` | Client org | **Session login** — one shared login id + password per client company (`clients.login_id`/`password_hash`, verified in `/portal/login`, session is a `jose`-signed JWT cookie — see `lib/auth/client-session*.ts`) |
 
-The old design reached the portal via an unguessable per-project `portal_token` URL.
-That's retired — there is no `portal_token` column anymore. Login determines
-identity. There's no portal tab navigation at all now (`PortalNav.tsx` exists
-but is unused — see "Paused features"): `/portal` is the sole hub, showing
-ticket scorecards + a "Your projects" list; clicking a project goes to
-`/portal/projects/[projectId]`, which now shows that project's tickets (not
-the old milestone/decision/document overview — those routes still exist and
-still redirect back to this page, see below). The one persistent "New
-ticket" button lives in the portal header (`app/portal/(app)/layout.tsx`),
-not duplicated on individual pages. All of this is gated by the session
-cookie (`middleware.ts`), not a token.
+The client portal is reached via that shared login, not a per-project token — there is
+no `portal_token` column. Login determines identity. There's no portal tab navigation:
+`/portal` is the sole hub, showing ticket scorecards + a "Your projects" list; clicking
+a project goes to `/portal/projects/[projectId]`, which shows that project's tickets.
+The one persistent "New ticket" button lives in the portal header
+(`app/portal/(app)/layout.tsx`), not duplicated on individual pages. All of this is
+gated by the session cookie (`middleware.ts`), not a token.
 
-Signing is still **only** ever done via `/sign/[approvalToken]` — a one-time
-email link to a named recipient. Clients cannot sign anything from the portal,
-even though they can now log in, create tickets, and comment. This is
-intentional and must not be changed.
+Because the client session is a custom JWT (not a Supabase Auth session), Postgres RLS
+has no way to see it. Portal server actions/routes use `createServiceRoleClient()` —
+authorization is a manual check in the action itself (a verified session's `clientId`),
+not something RLS can enforce for that surface. See rules 3–4 below.
 
-Because the client session is a custom JWT (not a Supabase Auth session),
-Postgres RLS has no way to see it. Portal server actions/routes keep using
-`createServiceRoleClient()` exactly as before — what changed is *what's
-checked* before that call (a verified session's `clientId`, instead of a
-`portal_token` lookup). See rules 3–4 below.
+### Ticket attachments — attribution only
 
-### Documents — no signing, just attribution
-
-Documents are tagged as shared **"By NuAIg"** or **"By [ClientName]"**.
-There is no signing on documents. Formal approval happens at the milestone and
-decision level, not on individual files. `documents.ticket_id` (nullable,
-alongside `milestone_id`/`decision_id`) lets a ticket attachment reuse this
-same vault.
+A ticket comment/attachment can carry a `shared_by` tag (`'team'` or `'client'`) on the
+`documents` row so the thread shows who attached what. `documents.ticket_id` is how a
+ticket attachment hangs off this table; `documents.project_id` is optional (a ticket may
+or may not have a project). There is no signing or approval workflow anywhere in the
+product — nothing in Aligned requires a formal sign-off anymore.
 
 ### Ticketing — the heart of the app
 
-Tickets are the primary surface now — clients log into the portal and raise
-them (still an optional, un-forced project pick on that side); the assigned
-project's team triages and works them.
+Tickets are the entire product surface — clients log into the portal and raise them
+(still an optional, un-forced project pick on that side); the assigned project's team
+triages and works them.
 
 Key departures from a plain kanban:
 
@@ -84,12 +75,8 @@ Key departures from a plain kanban:
   frozen to `'client'` forever (migration 034) — only team-raised tickets can
   be reclassified either direction.
 - **Status** is richer than a 3-lane board on purpose: `open | in_progress |
-  resolved | closed`, plus `reopened_count` (bumped by trigger, not a full
-  `parent_id`/iteration chain like milestones — tickets aren't formal
-  contractual artifacts).
-- **`blocked_on`** (`'client' | 'team'`, nullable) is the same concept as
-  `milestones.delay_owner`, reused for visual/conceptual consistency between
-  the two features.
+  resolved | closed`, plus `reopened_count` (bumped by trigger).
+- **`blocked_on`** (`'client' | 'team'`, nullable) flags who a ticket is waiting on.
 - **Assignees are always team members** (`ticket_assignees`, multiple per
   ticket) — clients raise and watch, they don't get assigned.
 - **Mentions** (`ticket_comments.mentioned_team_member_ids`) are restricted to
@@ -100,7 +87,7 @@ Key departures from a plain kanban:
 
 **Project membership drives who can act on a ticket (migration 038,
 `project_members` / `is_project_member` / `can_edit_ticket` /
-`can_be_ticket_assignee`).** A project now has an explicit team roster
+`can_be_ticket_assignee`).** A project has an explicit team roster
 (`project_members`, managed from the project hub's "Project team" panel by
 anyone already on the project, the client's assigned Manager, or an admin — see
 `ProjectMembersManager.tsx` / `lib/projects/members-actions.ts`). Being on a
@@ -124,16 +111,21 @@ The dashboard's default Tickets list is still narrowed to "my projects" as a
 **display filter** computed in `app/dashboard/tickets/page.tsx` (project
 membership ∪ managed clients ∪ tickets you raised or are assigned to) — not an
 RLS restriction — precisely so the universal ticket search can still open
-anything outside that set. This supersedes migration 037's narrower SELECT
-policy; that narrowing turned out to conflict with wanting any ticket
-findable regardless of project.
+anything outside that set. The dashboard Overview page (`app/dashboard/page.tsx`)
+applies the identical scoping to its own ticket-derived sections, and
+`app/dashboard/projects/page.tsx` applies the analogous scoping to the
+Projects list (`lib/projects/scope.ts`) — same "display filter, not RLS"
+pattern, kept in one shared helper so it can't drift between the two pages.
 
 **Universal ticket search** lives in the dashboard header
 (`components/dashboard/TicketSearch.tsx`, not on the Tickets page itself —
-it's reachable from any dashboard route), backed by `searchTickets()` in
-`lib/tickets/team-actions.ts`. No "#" required — it matches digits anywhere
-in the query against `ref_number` and does a title substring match, showing
-a dropdown of ref + title, most-recently-updated first.
+it's reachable from any dashboard route), backed by the `search_tickets()`
+Postgres function (migration 039) via `searchTickets()` in
+`lib/tickets/team-actions.ts`. It matches a client's short code and/or ticket
+number as a case-insensitive prefix (so "math", "MATH-017", and "17" all
+resolve to the right ticket), ranks an exact identifier match above a partial
+one above a plain title match, and shows a dropdown of ref + title,
+keyboard-navigable.
 
 **Ticket creation requires a project** on the dashboard side — the picker in
 `NewTicketModal.tsx` only offers the team member's own projects (or every
@@ -144,34 +136,11 @@ this was an explicit, separate product decision; don't collapse the two
 flows together.
 
 **This whole model (project-scoped tickets, open ticket visibility) is
-deliberately not extended to clients/projects/milestones/decisions/documents**
-— those keep the original "any team member, full access" policies. Don't copy
-the ticket RLS pattern onto those tables without discussing it first; it's a
-real behavior change.
-
-### Paused features — Milestones, Decisions, Documents (project-level)
-
-Every panel, action, and migration for these still exists on disk, untouched
-— they're switched off at the routing layer only, so re-enabling any of them
-is a small, mechanical change with nothing to rebuild:
-
-- **Dashboard**: `app/dashboard/projects/[projectId]/{milestones,decisions,documents}/page.tsx`
-  each had their real logic renamed into an unused `*PageContent` function in
-  the same file, with the actual default export reduced to a one-line
-  `redirect(...)` back to the project hub. To re-enable one, replace that
-  redirect with `return XPageContent({ params })` and re-add its quick-nav
-  card on the project hub page (`app/dashboard/projects/[projectId]/page.tsx`,
-  now ticket-stats-only).
-- **Portal**: the project layout (`app/portal/(app)/projects/[projectId]/layout.tsx`)
-  no longer redirects — `/portal/projects/[projectId]` now renders that
-  project's ticket list instead. Only the milestones/decisions/documents
-  sub-pages are individually paused, same *PageContent-plus-redirect pattern
-  as the dashboard side — restore each the same way. There's no tab nav
-  anywhere in the portal anymore (`PortalNav.tsx` and `ProjectTabs.tsx` both
-  exist but are unused); re-add whichever ones re-enabling requires.
-- Ticket attachments (`documents.ticket_id`) are **not** part of this pause —
-  they're Ticketing, and keep working through `can_edit_ticket()` (migration
-  038), independent of the standalone project-level Documents panel above.
+deliberately not extended to clients/projects** — those keep the original
+"any team member, full access" RLS policies; only the *display* is scoped for
+projects (see above), not the underlying access control. Don't copy the
+ticket RLS pattern onto those tables without discussing it first; it's a real
+behavior change.
 
 **Notifications split by principal type:**
 - Team side: real in-app notifications (`notifications` table + Supabase
@@ -190,27 +159,11 @@ means `team_members where manager_id = <that manager's id>`. A trigger
 (`validate_team_member_manager` / `validate_client_manager`) enforces that
 whoever is set as a manager actually holds the `admin` or `manager` role.
 
-### Approval flow — first signer locks it
-
-When multiple recipients receive approval links for the same decision/milestone,
-the **first person to sign locks it**. All other pending links are marked `superseded`.
-Others who open their link see who already signed, with timestamp.
-
 ### Mobile — blocked entirely
 
 The platform displays a "Desktop only" message on viewports below 768px.
-This applies to ALL routes including the portal and sign page.
-Do not remove the mobile block from `app/layout.tsx`.
-
-### Milestone types
-
-- `client_gate` — requires client sign-off before project can proceed
-- `internal` — NuAIg owns it, client can view but no action needed
-- `informational` — auto-notifies client, no action
-
-Regression (e.g. UAT fails, goes back to dev) is handled by re-opening a milestone
-and incrementing `iteration`. The old iteration is kept in history with `parent_id`.
-Do not delete milestone records — always create new iterations.
+This applies to ALL routes including the portal. Do not remove the mobile
+block from `app/layout.tsx`.
 
 ### Contact management
 
@@ -218,8 +171,12 @@ Contacts exist at two levels:
 1. **Client level** (`project_id = null`) — default contacts inherited by all projects
 2. **Project level** (`project_id = <id>`) — additions for a specific project
 
-When sending approval links, always pick from the project's effective contact list
-(client defaults + project-specific additions).
+They serve two purposes: the portal's "posting as" name picker when a client
+raises a ticket or comments (cosmetic attribution, not auth), and the
+recipient list for ticket email (`lib/email/index.ts`). When resolving who
+should be emailed about a ticket, use the project's *effective* contact list
+(client defaults + project-specific additions for that ticket's project) —
+not just the client-level defaults.
 
 ---
 
@@ -230,9 +187,8 @@ When sending approval links, always pick from the project's effective contact li
 | Framework | Next.js 14 (App Router) | Server Components where possible |
 | Database | Supabase (PostgreSQL) | See migration file |
 | Auth | Supabase Auth | Team only — clients don't have accounts |
-| Storage | Supabase Storage | Buckets: `project-documents`, `signed-records` |
-| Email | Resend | See `lib/email/index.ts` |
-| PDF | @react-pdf/renderer | For signed record generation (not yet built) |
+| Storage | Supabase Storage | Bucket: `project-documents` |
+| Email | Resend | Ticket confirmation/reply/resolved — see `lib/email/index.ts` |
 | Deployment | Vercel | Free tier |
 | Styling | Tailwind CSS + inline styles | See design system below. The codebase's real convention is **inline `style={{}}` everywhere** — the `.card`/`.pill`/`.btn` utility classes in `globals.css` exist but aren't actually used by any component; match the inline-style convention, not the unused classes. |
 | Client auth | `bcryptjs` + `jose` | `lib/auth/client-session*.ts` — portal login, NOT Supabase Auth (see Access model) |
@@ -254,27 +210,28 @@ RESEND_FROM_NAME=NuAIg Aligned
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_COMPANY_NAME=NuAIg
 NEXTAUTH_SECRET=              ← signs the client portal session JWT (lib/auth/client-session-core.ts) — required, not decorative
-CRON_SECRET=                 ← for nudge API route
 ```
 
 ---
 
 ## Database setup
 
-The migrations folder was **fully rebuilt from `001`** as one clean,
-dependency-ordered sequence (team/roles → clients/login → projects → tickets
-→ milestones/decisions/approvals/documents → notifications/settings → RLS →
-storage), following Chronos's conventions throughout: `CREATE TABLE IF NOT
-EXISTS`, `DROP POLICY IF EXISTS` before every `CREATE POLICY`, enum creation
-wrapped in `DO $$ ... EXCEPTION WHEN duplicate_object`, one `SECURITY DEFINER
-STABLE` helper per reusable RLS predicate. This assumes a **fresh Supabase
-project** — there is no migration path from the old schema, and none is
-needed (no prior production data to preserve).
+The migrations folder is one clean, dependency-ordered sequence: `001` built the
+original schema (team/roles → clients/login → projects → tickets → notifications/
+settings → RLS → storage), and `020`–`040` are incremental changes on top of it
+(RBAC tightening, ticket types, project membership, ticket search, and — as of `040`
+— removing the Milestones/Decisions/Approvals schema that the product no longer has).
+Chronos's conventions are followed throughout: `CREATE TABLE IF NOT EXISTS`, `DROP
+POLICY IF EXISTS` before every `CREATE POLICY`, enum creation wrapped in `DO $$ ...
+EXCEPTION WHEN duplicate_object`, one `SECURITY DEFINER STABLE` helper per reusable RLS
+predicate. This assumes a **fresh Supabase project** — there is no migration path from
+the old schema, and none is needed (no prior production data to preserve).
 
-Run `supabase/migrations/001` through `019` **in order** in the Supabase SQL
-editor (or via the CLI). Storage buckets (`project-documents`, `signed-records`)
-and their access policies are created **live by migration `019`** — no manual
-dashboard step needed for those anymore.
+Run `supabase/migrations/001` through `040` **in order** in the Supabase SQL
+editor (or via the CLI). The storage bucket (`project-documents`) and its access
+policies are created **live by migration `019`** — no manual dashboard step needed.
+(Migration `019` also created a `signed-records` bucket for a PDF export that was
+never built; migration `040` removes it along with the rest of the approval flow.)
 
 Then create your first team member (this one step still has to be manual —
 Supabase Auth signup isn't scriptable from a migration):
@@ -295,40 +252,34 @@ that client's dashboard page (`app/dashboard/clients/[clientId]/ClientAccessMana
 ```
 app/
   dashboard/              ← NuAIg team views (Supabase Auth required)
-    page.tsx              ← Overview / home
-    layout.tsx            ← Sidebar layout + NotificationsProvider
-    template.tsx          ← Page-transition wrapper (framer-motion)
-    tickets/               ← Ticket board (kanban+list), new-ticket modal, ticket-# search
+    page.tsx              ← Overview / home — stat tiles, "needs your attention",
+                             assigned-to-me, ticket-status meter, activity stream
+    layout.tsx             ← Sidebar layout + NotificationsProvider
+    template.tsx            ← Page-transition wrapper (framer-motion)
+    tickets/                ← Ticket board (kanban+list), new-ticket modal, ticket-# search
       page.tsx / TicketsBoard.tsx / TicketCard.tsx / NewTicketModal.tsx
-      [id]/                ← Ticket detail + comments (read-only when !canAct)
+      [id]/                  ← Ticket detail + comments (read-only when !canAct)
         page.tsx / TicketDetail.tsx / TicketComments.tsx / TicketPropertiesPanel.tsx / TicketAttachments.tsx
-    clients/               ← Client list + client detail
+    clients/                 ← Client list + client detail
       [clientId]/
         ContactsManager.tsx       ← Client contacts
         ClientAccessManager.tsx  ← Manager picker + portal login issuance
     projects/
       [projectId]/
-        page.tsx                   ← Project hub: ticket stats + team + embedded board (Milestones/Decisions/Documents paused, see above)
+        page.tsx                   ← Project hub: ticket stats + team + embedded board
         ProjectMembersManager.tsx  ← Project team add/remove
-        milestones/ decisions/ documents/  ← Paused panels (untouched, unreachable — see "Paused features")
 
   portal/
-    login/                ← Client login (session-based, replaces portal_token)
+    login/                ← Client login (session-based)
       page.tsx / LoginForm.tsx / actions.ts
     (app)/                ← Route group requiring a valid client session
-      layout.tsx          ← Topbar (Logo→/portal, New ticket, bell, logout) — no tab nav
+      layout.tsx          ← Topbar (Logo→/portal, New ticket, bell, logout)
       template.tsx        ← Page-transition wrapper
       page.tsx            ← Client hub: ticket scorecards + projects list
       tickets/            ← List / new / detail + ContactNamePicker
-      projects/[projectId]/  ← That project's ticket list (milestones/decisions/documents sub-pages paused — see "Paused features")
+      projects/[projectId]/  ← That project's ticket list
 
-  sign/[approvalToken]/   ← Sign-off page (email link destination) — UNCHANGED
-    page.tsx              ← Server: validates token, shows state
-    SignForm.tsx           ← Client: handles sign submission
-
-  api/
-    approvals/            ← send / sign / concern routes
-    nudge/route.ts        ← GET: cron job for nudge reminders
+  (no api/ directory — every mutation is a Server Action; there are no route handlers today)
 
 components/
   dashboard/
@@ -352,11 +303,11 @@ lib/
   projects/
     actions.ts             ← createProject (auto-adds creator as first project_member) / deleteProject
     members-actions.ts     ← addProjectMember / removeProjectMember (RLS: can_manage_project_members)
+    scope.ts                ← getMyProjectScope / scopeProjectsQuery — shared "my projects" display filter (Overview + Projects list)
   clients/access-actions.ts  ← Manager assignment + login credential issue/revoke
-  notifications/create.ts   ← createTicketNotifications / getActorName
-  email/index.ts          ← Resend helpers (approvals, nudge, concern, tickets) — lazy client, no-ops if RESEND_API_KEY unset
-  pdf/                    ← PDF generation (TODO)
-  utils/index.ts          ← Formatting, helpers, ticket status/priority config
+  notifications/create.ts   ← createTicketNotifications / getActorName / createClientNotification
+  email/index.ts          ← Resend helpers (ticket confirmation/reply/resolved) — lazy client, no-ops if RESEND_API_KEY unset
+  utils/index.ts           ← Formatting, helpers, ticket status/priority config
 
 types/index.ts            ← All TypeScript types (mirrors DB schema)
 middleware.ts             ← Auth guard for /dashboard (Supabase session) AND /portal (client session JWT)
@@ -367,7 +318,7 @@ middleware.ts             ← Auth guard for /dashboard (Supabase session) AND /
 ## What is built vs TODO
 
 ### Built
-- [x] Database schema — full rebuild, `001`–`019`, fresh-project ready (see Database setup)
+- [x] Database schema — full rebuild, `001`–`040`, fresh-project ready (see Database setup)
 - [x] TypeScript types
 - [x] Supabase client helpers (browser, server, service role)
 - [x] Team auth middleware (Supabase Auth) + client portal session middleware (JWT)
@@ -378,20 +329,16 @@ middleware.ts             ← Auth guard for /dashboard (Supabase session) AND /
 - [x] Dashboard overview page
 - [x] Clients list + client detail (contacts, Manager picker, portal login issuance)
 - [x] Projects list + new-project form + project detail page (hub)
-- [x] Milestones / Decisions / Documents management (dashboard) + portal views
 - [x] Client portal hub (session-based) — Tickets + Projects
-- [x] Tickets: schema, RLS (Manager+team visibility), dashboard board/list + detail,
-      portal create/list/detail, comments w/ @mentions, in-app + email notifications
-- [x] Sign page (server + client form)
-- [x] API: send approvals / sign approval / raise concern / nudge cron
-- [x] Email templates (approval, nudge, concern, ticket confirmation/reply/resolved)
+- [x] Tickets: schema, RLS (project-membership action scoping, open visibility), dashboard
+      board/list + detail, portal create/list/detail, comments w/ @mentions, universal
+      ranked search, in-app + email notifications
+- [x] Email templates (ticket confirmation/reply/resolved)
 - [x] Motion/feedback polish: page transitions, optimistic UI, toasts, loading skeletons
 
 ### TODO
-- [ ] PDF generation for signed records
-- [ ] Vercel cron config for nudge (`vercel.json`) — file exists, confirm it's wired in the Vercel project
-- [ ] Per-contact individual client logins (explicitly deferred — see Ticketing section)
 - [ ] Real-time updates on the client portal (currently Server Action + `revalidatePath`, not Supabase Realtime — the client session isn't a Supabase Auth principal, so Realtime's RLS-gated subscriptions don't apply there)
+- [ ] Ticket email hardening — see the "client email" plan for the current gap list (contact resolution missing project-level contacts, no delivery log, team-created tickets don't yet email the client)
 
 ---
 
@@ -437,7 +384,6 @@ The UI matches the mockups designed in the planning phase. Key rules:
 | Completed / Signed | `#EAF3DE` | `#3B6D11` |
 | Awaiting / Pending | `#FAEEDA` | `#633806` |
 | Internal | `#F1EFE8` | `#888780` |
-| Client sign-off | `#EEEDFE` | `#3C3489` |
 | Info / Notified | `#E6F1FB` | `#0C447C` |
 | Not started | `#F1EFE8` | `#888780` |
 | Ticket: Open | `#E6F1FB` | `#0C447C` |
@@ -461,74 +407,74 @@ canonical source for these — use them rather than re-declaring the mapping.)
    which lets Postgres RLS do the access control (important for tickets —
    see the Ticketing section).
 
-3. **The portal DOES have auth now** (client login — see Access model) but
-   it's still not Supabase Auth, and RLS still isn't the enforcement layer for
-   it. `/sign/[approvalToken]` remains the one truly public, unauthenticated
-   surface — security there comes from the token being hard to guess (32
-   random bytes) plus it being single-purpose (sign one thing, nothing else).
+3. **The portal has auth** (client login — see Access model) but it's still not
+   Supabase Auth, and RLS still isn't the enforcement layer for it.
 
 4. **Always use `createServiceRoleClient()` in API routes/Server Actions that
-   handle sign-offs or run under the portal session**, since neither is a
-   Supabase Auth principal RLS can evaluate. Authorization for those is a
-   manual check in the action itself (e.g. `lib/portal/session-guard.ts`,
-   `lib/tickets/portal-actions.ts` checking `ticket.client_id === session.clientId`)
-   — don't skip that check because "the query is scoped to an id" isn't enough
-   when the client bypasses RLS.
+   run under the portal session**, since it isn't a Supabase Auth principal RLS
+   can evaluate. Authorization for those is a manual check in the action itself
+   (e.g. `lib/portal/session-guard.ts`, `lib/tickets/portal-actions.ts` checking
+   `ticket.client_id === session.clientId`) — don't skip that check because
+   "the query is scoped to an id" isn't enough when the client bypasses RLS.
 
 5. **Use Server Components by default.** Only add `'use client'` when you need
    interactivity (forms, onClick, useState, etc.).
 
-6. **Keep the sign page simple and trustworthy.** It's what clients see when they
-   receive an email. No clutter, no extra navigation, clear identity confirmation.
+6. **Document uploads go to Supabase Storage** `project-documents` bucket.
+   The portal side uploads via a service-role Server Action
+   (`uploadPortalAttachment` in `lib/tickets/portal-actions.ts`, per rule 4 above);
+   the dashboard side (`TicketAttachments.tsx`) uploads directly from the browser
+   with the authenticated client, relying on `documents`' RLS (`can_edit_ticket`
+   for ticket-linked rows). Either way, store the `storage_path` in the
+   `documents` table and generate signed URLs on the fly for downloads (1hr expiry).
 
-7. **Milestone regressions: never delete, always iterate.** Set `parent_id` to the
-   previous milestone, increment `iteration`, set status back to `in_progress`.
+7. **Company name is NuAIg.** In all UI copy, emails, and labels, use "NuAIg" not
+   "Momentum Studio" or any placeholder. The client's company name comes from the
+   `clients.name` field in the database.
 
-8. **Document uploads go to Supabase Storage** `project-documents` bucket.
-   Use the service role client in the upload API route. Store the `storage_path`
-   in the `documents` table. Generate signed URLs on the fly for downloads (1hr expiry).
+8. **Ticket visibility is a real access-control feature, not just a UI filter.**
+   `can_view_ticket()` / `is_on_client_team()` (migration `006`/`010`) are the
+   single source of truth for "can this team member see/act on this ticket."
+   Never re-implement that predicate inline in a query or a new RLS policy —
+   call the existing SQL function, the same way `ticket_comments` and
+   `ticket_assignees` both call it rather than each getting their own copy.
+   If the rule ever needs to change, it changes in exactly one place.
 
-9. **The nudge cron** (`/api/nudge`) requires `Authorization: Bearer <CRON_SECRET>`
-   header. Set `CRON_SECRET` in env. Configure in `vercel.json` for production.
+9. **A ticket/comment's author is exactly one of `created_by_team_member_id`
+   OR `created_by_client_name`**, enforced by a DB `CHECK` constraint. When
+   writing a new query or UI against `tickets`/`ticket_comments`, always
+   handle both — don't assume every row has a team-member author.
 
-10. **Company name is NuAIg.** In all UI copy, emails, and labels, use "NuAIg" not
-    "Momentum Studio" or any placeholder. The client's company name comes from the
-    `clients.name` field in the database.
-
-11. **Ticket visibility is a real access-control feature, not just a UI filter.**
-    `can_view_ticket()` / `is_on_client_team()` (migration `006`/`010`) are the
-    single source of truth for "can this team member see/act on this ticket."
-    Never re-implement that predicate inline in a query or a new RLS policy —
-    call the existing SQL function, the same way `ticket_comments` and
-    `ticket_assignees` both call it rather than each getting their own copy.
-    If the rule ever needs to change, it changes in exactly one place.
-
-12. **A ticket/comment's author is exactly one of `created_by_team_member_id`
-    OR `created_by_client_name`**, enforced by a DB `CHECK` constraint. When
-    writing a new query or UI against `tickets`/`ticket_comments`, always
-    handle both — don't assume every row has a team-member author.
-
-13. **New migrations continue the `NNN_description.sql` sequence** (currently
-    through `019`) — one concern per file, idempotent (`IF NOT EXISTS`,
+10. **New migrations continue the `NNN_description.sql` sequence** (currently
+    through `040`) — one concern per file, idempotent (`IF NOT EXISTS`,
     `DROP POLICY IF EXISTS` before `CREATE POLICY`), and any RLS predicate
     used by more than one table extracted into its own `SECURITY DEFINER
     STABLE` SQL function first. Don't go back and edit an already-numbered
     migration file once it's part of the sequence — add a new one.
 
-14. **`lib/email/index.ts`'s Resend client is lazy and no-ops without
+11. **`lib/email/index.ts`'s Resend client is lazy and no-ops without
     `RESEND_API_KEY`.** Don't reintroduce `new Resend(...)` at module scope —
     that crashes the Next.js build's page-data-collection step the moment any
     server action importing this file gets analyzed with the key unset.
 
-15. **`lib/auth/client-session-core.ts` must stay bcryptjs-free.** It's the
+12. **`lib/auth/client-session-core.ts` must stay bcryptjs-free.** It's the
     only auth file `middleware.ts` may import (Edge runtime — `bcryptjs`
     depends on Node's `crypto` and isn't Edge-compatible). Password hashing
     lives in `lib/auth/client-session.ts`, imported only from Server Actions.
 
-16. **Motion and feedback are load-bearing UX requirements here, not
+13. **Motion and feedback are load-bearing UX requirements here, not
     decoration** — every dashboard/portal route transition goes through a
     `template.tsx` (framer-motion), every mutation gives `react-hot-toast`
     feedback, and ticket status/assignee/comment changes update local state
     optimistically before the server round-trip resolves. When adding a new
     mutating action, follow that pattern rather than a plain
     `await action(); router.refresh()`.
+
+14. **Milestones, Decisions, and the email-link approval/sign-off flow are
+    gone, not paused.** The routes, Server Actions, DB tables/types/functions,
+    and email templates were deliberately deleted together (see migration
+    `040`). If a future request wants any of that back, treat it as new
+    product work — design it against the current schema (project membership,
+    ticket-centric notifications) rather than resurrecting the old files from
+    git history, which predate decisions like the client session model and
+    would need real reconciliation, not a revert.

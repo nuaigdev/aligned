@@ -209,7 +209,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
             <DeleteConfirmButton
               entityLabel="client"
               confirmText={client.name}
-              cascadeWarning={`This permanently deletes ${projects.length} project(s), ${ticketCount ?? 0} ticket(s), and all contacts, milestones, decisions, and documents for ${client.name}.`}
+              cascadeWarning={`This permanently deletes ${projects.length} project(s), ${ticketCount ?? 0} ticket(s), and all contacts and documents for ${client.name}.`}
               action={deleteClient}
               entityId={client.id}
               redirectTo="/dashboard/clients"

@@ -127,7 +127,7 @@ export default async function ClientsPage() {
           <EmptyState
             icon={Building2}
             title="No clients yet"
-            description={canCreate ? 'Add your first client to start tracking projects, tickets, and decisions for them.' : 'An admin needs to add a client before you can start tracking projects, tickets, and decisions for them.'}
+            description={canCreate ? 'Add your first client to start tracking projects and tickets for them.' : 'An admin needs to add a client before you can start tracking projects and tickets for them.'}
             actionLabel={canCreate ? 'Add your first client' : undefined}
             actionHref={canCreate ? '/dashboard/clients/new' : undefined}
           />

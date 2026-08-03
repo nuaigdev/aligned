@@ -92,8 +92,7 @@ export default async function DashboardPage() {
   }
 
   // A single prioritized "needs you" feed — urgent tickets first, then
-  // unassigned ones (deduped). Approvals are gone: milestones/decisions are
-  // paused, so approval_links no longer has a live source to point at.
+  // unassigned ones (deduped).
   type AttentionItem = { key: string; label: string; sublabel: string; href: string; tone: 'danger' | 'warning' }
   const seen = new Set<string>()
   const attention: AttentionItem[] = []
