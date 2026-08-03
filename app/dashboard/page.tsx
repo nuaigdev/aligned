@@ -23,29 +23,48 @@ export default async function DashboardPage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  // Projects are scoped the same way the Tickets page scopes "my projects"
-  // — a plain member only ever sees projects they're an explicit member
-  // of (or, for a Manager, projects of clients they manage). Tickets stay
-  // open-visibility by design (see CLAUDE.md), so only the projects query
-  // below is scoped — the ticket-derived sections are untouched.
+  // Both projects and this page's ticket sections are scoped the same way
+  // the Tickets page scopes its own default "my projects" view (RLS still
+  // lets any team member read any ticket by id/search — this is a display
+  // default, not a security boundary, matching app/dashboard/tickets/page.tsx
+  // exactly): admins see everything; everyone else sees projects/tickets
+  // from their own project memberships, clients they manage, tickets they
+  // raised, and tickets they're assigned to.
   const scope = user
     ? await getMyProjectScope(supabase, user.id)
     : { isAdmin: false, isManager: false, name: null, projectIds: [], managedClientIds: [] }
 
-  const projectsBaseQuery = supabase
-    .from('projects')
-    .select('id, name, status, updated_at, clients(name)')
-    .order('updated_at', { ascending: false })
-    .limit(6)
-  const scopedProjectsQuery = scopeProjectsQuery(projectsBaseQuery, scope)
-
-  const [{ data: tickets }, { data: projects }] = await Promise.all([
-    supabase
-      .from('tickets')
-      .select('id, ref_number, title, status, priority, due_date, resolved_at, updated_at, clients(name, slug), ticket_assignees(team_member_id)')
-      .order('updated_at', { ascending: false }),
-    scopedProjectsQuery ? scopedProjectsQuery : Promise.resolve({ data: [] as any[] }),
+  const [{ data: myAssignments }, projectsResult] = await Promise.all([
+    user && !scope.isAdmin
+      ? supabase.from('ticket_assignees').select('ticket_id').eq('team_member_id', user.id)
+      : Promise.resolve({ data: [] as { ticket_id: string }[] }),
+    (() => {
+      const projectsBaseQuery = supabase
+        .from('projects')
+        .select('id, name, status, updated_at, clients(name)')
+        .order('updated_at', { ascending: false })
+        .limit(6)
+      const scopedProjectsQuery = scopeProjectsQuery(projectsBaseQuery, scope)
+      return scopedProjectsQuery ? scopedProjectsQuery : Promise.resolve({ data: [] as any[] })
+    })(),
   ])
+  const projects = projectsResult.data
+
+  let ticketsQuery = supabase
+    .from('tickets')
+    .select('id, ref_number, title, status, priority, due_date, resolved_at, updated_at, project_id, client_id, created_by_team_member_id, clients(name, slug), ticket_assignees(team_member_id)')
+    .order('updated_at', { ascending: false })
+
+  if (user && !scope.isAdmin) {
+    const myAssignedTicketIds = (myAssignments ?? []).map(r => r.ticket_id)
+    const orParts = [`created_by_team_member_id.eq.${user.id}`]
+    if (scope.projectIds.length) orParts.push(`project_id.in.(${scope.projectIds.join(',')})`)
+    if (scope.managedClientIds.length) orParts.push(`client_id.in.(${scope.managedClientIds.join(',')})`)
+    if (myAssignedTicketIds.length) orParts.push(`id.in.(${myAssignedTicketIds.join(',')})`)
+    ticketsQuery = ticketsQuery.or(orParts.join(','))
+  }
+
+  const { data: tickets } = await ticketsQuery
 
   const me = { name: scope.name }
 
