@@ -339,38 +339,47 @@ function Composer({
         </p>
       )}
 
-      <textarea
-        ref={taRef}
-        value={text}
-        onChange={e => { setText(e.target.value); detectTrigger(e.target.value, e.target.selectionStart ?? e.target.value.length) }}
-        placeholder="Write a comment… use @ to mention someone on this client's team."
-        rows={2}
-        onKeyDown={e => {
-          if (trigger && candidates.length > 0 && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); pickMember(candidates[0]); return }
-          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit()
-          if (e.key === 'Escape') setTrigger(null)
-        }}
-        style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '8px 11px', border: '0.5px solid var(--border-medium)', borderRadius: '7px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-      />
+      {/* Positioning context scoped to just the textarea — anchoring the
+          mention dropdown to the outer wrapper instead (which also
+          contains the toggle row and Save/Cancel row) pushed it below all
+          of that, well outside the comment box. This keeps it anchored to
+          where you're actually typing: it drops down just under the first
+          line, overlaid on top of the box, instead of floating below the
+          whole composer. */}
+      <div style={{ position: 'relative' }}>
+        <textarea
+          ref={taRef}
+          value={text}
+          onChange={e => { setText(e.target.value); detectTrigger(e.target.value, e.target.selectionStart ?? e.target.value.length) }}
+          placeholder="Write a comment… use @ to mention someone on this client's team."
+          rows={2}
+          onKeyDown={e => {
+            if (trigger && candidates.length > 0 && (e.key === 'Enter' || e.key === 'Tab')) { e.preventDefault(); pickMember(candidates[0]); return }
+            if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') submit()
+            if (e.key === 'Escape') setTrigger(null)
+          }}
+          style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '8px 11px', border: '0.5px solid var(--border-medium)', borderRadius: '7px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+        />
 
-      {trigger && candidates.length > 0 && (
-        <div style={{ position: 'absolute', zIndex: 20, left: 0, right: 0, top: '100%', marginTop: '2px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '8px', boxShadow: '0 8px 20px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
-          {candidates.map(m => (
-            <button key={m.id} type="button" onMouseDown={e => { e.preventDefault(); pickMember(m) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
-              <Avatar name={m.name} size={20} />
-              <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{m.name}</span>
-            </button>
-          ))}
-        </div>
-      )}
+        {trigger && candidates.length > 0 && (
+          <div style={{ position: 'absolute', zIndex: 20, left: 0, right: 0, top: '30px', background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '8px', boxShadow: '0 8px 20px rgba(0,0,0,0.15)', overflow: 'hidden' }}>
+            {candidates.map(m => (
+              <button key={m.id} type="button" onMouseDown={e => { e.preventDefault(); pickMember(m) }} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 10px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+                <Avatar name={m.name} size={20} />
+                <span style={{ fontSize: '13px', color: 'var(--text-primary)' }}>{m.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '6px' }}>
         {onCancel && (
-          <button onClick={onCancel} disabled={busy} style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '7px', border: '0.5px solid var(--border-medium)', background: 'var(--bg-primary)', cursor: 'pointer' }}>
+          <button onClick={onCancel} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '6px 12px', borderRadius: '7px', border: '0.5px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
             <X size={11} /> Cancel
           </button>
         )}
-        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: 'var(--brand-600)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1 }}>
+        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: 'var(--brand-600)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1, whiteSpace: 'nowrap' }}>
           {submitLabel === 'Save' ? <Check size={12} /> : <Send size={12} />}
           {busy ? 'Saving…' : submitLabel}
         </button>

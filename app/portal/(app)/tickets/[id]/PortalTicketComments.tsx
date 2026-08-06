@@ -298,10 +298,10 @@ function InlineEditor({
         style={{ width: '100%', resize: 'vertical', fontFamily: 'inherit', padding: '8px 11px', border: '0.5px solid var(--border-medium)', borderRadius: '7px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
       />
       <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '6px' }}>
-        <button onClick={onCancel} disabled={busy} style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '7px', border: '0.5px solid var(--border-medium)', background: 'var(--bg-primary)', cursor: 'pointer' }}>
+        <button onClick={onCancel} disabled={busy} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '6px 12px', borderRadius: '7px', border: '0.5px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
           <X size={11} /> Cancel
         </button>
-        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: 'var(--brand-600)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1 }}>
+        <button onClick={submit} disabled={busy || !text.trim()} style={{ fontSize: '12px', padding: '6px 14px', borderRadius: '7px', border: 'none', background: 'var(--brand-600)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', opacity: busy ? 0.7 : 1, whiteSpace: 'nowrap' }}>
           <Check size={12} /> {busy ? 'Saving…' : 'Save'}
         </button>
       </div>
