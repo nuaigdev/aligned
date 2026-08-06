@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { requireTeamRole } from '@/lib/auth/team-role-guard'
+import { createProjectAssignmentNotification } from '@/lib/notifications/create'
 
 /**
  * Only admins and managers add projects — see the matching note on
@@ -37,12 +38,26 @@ export async function createProject(input: {
 
   // The creator is auto-added as the project's first member — otherwise
   // nobody could add anyone else (can_manage_project_members requires
-  // already being a member, or admin/the client's manager).
-  await supabase.from('project_members').insert({
-    project_id: data.id,
-    team_member_id: check.id,
-    added_by: check.id,
-  })
+  // already being a member, or admin/the client's manager). The client's
+  // assigned Manager is added alongside them — they already have standing
+  // override access to every ticket on this client (is_client_manager_or_admin),
+  // so being left off the roster was just a gap, not a boundary; a Set
+  // dedupes the common case where the creator *is* that Manager.
+  const { data: client } = await supabase.from('clients').select('manager_id').eq('id', input.clientId).maybeSingle()
+  const memberIds = new Set([check.id])
+  if (client?.manager_id) memberIds.add(client.manager_id)
+
+  await supabase.from('project_members').insert(
+    Array.from(memberIds).map(team_member_id => ({
+      project_id: data.id,
+      team_member_id,
+      added_by: check.id,
+    }))
+  )
+
+  if (client?.manager_id && client.manager_id !== check.id) {
+    await createProjectAssignmentNotification(supabase, [client.manager_id], check.id, data.id, input.name.trim())
+  }
 
   revalidatePath('/dashboard/projects')
   return { id: data.id }
