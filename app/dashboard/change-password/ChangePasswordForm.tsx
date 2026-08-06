@@ -46,8 +46,11 @@ export default function ChangePasswordForm({ forced }: { forced: boolean }) {
       return
     }
 
-    toast.success('Password updated')
-    router.push('/dashboard')
+    // changeOwnPassword() ends the session server-side (password changes
+    // force a logout — see the comment there) — land on login, not
+    // /dashboard, or middleware just bounces the stale session back here.
+    toast.success('Password updated — sign in with your new password')
+    router.push('/login')
     router.refresh()
   }
 
