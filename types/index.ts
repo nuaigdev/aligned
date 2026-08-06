@@ -31,6 +31,7 @@ export type NotificationType =
   | 'ticket_commented'
   | 'ticket_mentioned'
   | 'ticket_updated'
+  | 'project_assigned'
 
 export type ClientNotificationType =
   | 'ticket_replied'
@@ -156,6 +157,9 @@ export interface Ticket {
   ticket_type: TicketType
   status: TicketStatus
   priority: TicketPriority
+  // Team-only planning priority, independent of `priority` — see
+  // migration 042. Never shown to the client, never client-editable.
+  internal_priority: TicketPriority | null
   blocked_on: TicketBlockedOn | null
   position: number
   due_date: string | null

@@ -22,11 +22,17 @@ export default function TicketAttachments({
   projectId,
   initialDocuments,
   canAct = true,
+  canDeleteClientDocs = false,
 }: {
   ticketId: string
   projectId: string | null
   initialDocuments: AttachmentDoc[]
   canAct?: boolean
+  // Only an admin can remove a client's attachment from the team side
+  // (migration 044 enforces this at the RLS layer; this just keeps the
+  // button from appearing for everyone else and getting a confusing
+  // failure). The client can still remove their own via the portal.
+  canDeleteClientDocs?: boolean
 }) {
   const router = useRouter()
   const supabase = createBrowserClient()
@@ -144,7 +150,7 @@ export default function TicketAttachments({
                   <span style={{ fontSize: '18px' }}>🖼</span>
                 )}
               </button>
-              {canAct && (
+              {canAct && (doc.shared_by !== 'client' || canDeleteClientDocs) && (
                 <button
                   onClick={() => handleDelete(doc)}
                   title="Delete"
@@ -196,7 +202,7 @@ export default function TicketAttachments({
                 <button onClick={() => handleDownload(doc)} title="Download" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}>
                   <Download size={13} />
                 </button>
-                {canAct && (
+                {canAct && (doc.shared_by !== 'client' || canDeleteClientDocs) && (
                   <button onClick={() => handleDelete(doc)} title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}>
                     <Trash2 size={13} />
                   </button>

@@ -28,7 +28,7 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
 
   if (!ticket || ticket.client_id !== session.clientId || ticket.ticket_type !== 'client') notFound()
 
-  const [{ data: comments }, { data: contacts }, { data: teamMembers }, { data: documents }] = await Promise.all([
+  const [{ data: comments }, { data: contacts }, { data: teamMembers }, { data: documents }, { data: assigneeRows }] = await Promise.all([
     // Only the client's own comments, or team comments explicitly marked as
     // a reply to the client — internal team notes never reach the portal.
     supabase
@@ -40,7 +40,10 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
     supabase.from('client_contacts').select('id, name').eq('client_id', client.id).eq('is_active', true).is('project_id', null).order('name'),
     supabase.from('team_members').select('id, name, role, manager_id').eq('is_active', true),
     supabase.from('documents').select('*').eq('ticket_id', ticket.id).order('created_at', { ascending: false }),
+    supabase.from('ticket_assignees').select('team_members(name)').eq('ticket_id', ticket.id),
   ])
+
+  const assigneeNames = (assigneeRows ?? []).map((a: any) => a.team_members?.name).filter(Boolean) as string[]
 
   // Same "who's on this client's team" scope as is_on_client_team() — who the
   // client can @mention when they reply.
@@ -110,6 +113,8 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
           </span>
           <span>·</span>
           <span>Raised {formatDate(ticket.created_at)}</span>
+          <span>·</span>
+          <span>{assigneeNames.length > 0 ? `Assigned to ${assigneeNames.join(', ')}` : 'Not yet assigned'}</span>
           {ticket.due_date && <><span>·</span><span>Due {formatDate(ticket.due_date)}</span></>}
           {ticket.blocked_on === 'client' && <><span>·</span><span style={{ color: 'var(--warning-text)' }}>We're waiting on more info from you</span></>}
         </div>

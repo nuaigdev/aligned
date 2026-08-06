@@ -3,8 +3,8 @@
 import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import toast from 'react-hot-toast'
-import { Paperclip, Upload } from 'lucide-react'
-import { uploadPortalAttachment } from '@/lib/tickets/portal-actions'
+import { Paperclip, Upload, Trash2 } from 'lucide-react'
+import { uploadPortalAttachment, deletePortalAttachment } from '@/lib/tickets/portal-actions'
 import { formatFileSize, formatDate } from '@/lib/utils'
 import { ImageLightbox, isImageFile } from '@/components/dashboard/ImageLightbox'
 
@@ -58,6 +58,17 @@ export default function PortalTicketAttachments({
     router.refresh()
   }
 
+  async function handleDelete(doc: AttachmentWithUrl) {
+    if (!confirm(`Remove "${doc.name}"? This cannot be undone.`)) return
+    const result = await deletePortalAttachment(doc.id)
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    toast.success('Removed')
+    router.refresh()
+  }
+
   if (initialDocuments.length === 0 && !uploading) {
     return (
       <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '14px 16px' }}>
@@ -89,19 +100,33 @@ export default function PortalTicketAttachments({
       {images.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: files.length > 0 ? '10px' : 0 }}>
           {images.map(doc => (
-            <button
-              key={doc.id}
-              onClick={() => doc.signedUrl && setLightbox({ url: doc.signedUrl, name: doc.name })}
-              title={doc.name}
-              style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', border: 'none', padding: 0, cursor: 'pointer', background: 'var(--bg-tertiary)' }}
-            >
-              {doc.signedUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={doc.signedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              ) : (
-                <span style={{ fontSize: '18px' }}>🖼</span>
+            <div key={doc.id} style={{ position: 'relative', width: '56px', height: '56px' }}>
+              <button
+                onClick={() => doc.signedUrl && setLightbox({ url: doc.signedUrl, name: doc.name })}
+                title={doc.name}
+                style={{ width: '56px', height: '56px', borderRadius: '8px', overflow: 'hidden', border: 'none', padding: 0, cursor: 'pointer', background: 'var(--bg-tertiary)' }}
+              >
+                {doc.signedUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={doc.signedUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <span style={{ fontSize: '18px' }}>🖼</span>
+                )}
+              </button>
+              {doc.shared_by === 'client' && (
+                <button
+                  onClick={() => handleDelete(doc)}
+                  title="Remove"
+                  style={{
+                    position: 'absolute', top: '-5px', right: '-5px', width: '18px', height: '18px', borderRadius: '50%',
+                    background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', color: 'var(--text-tertiary)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0,
+                  }}
+                >
+                  <Trash2 size={9} />
+                </button>
               )}
-            </button>
+            </div>
           ))}
         </div>
       )}
@@ -109,21 +134,27 @@ export default function PortalTicketAttachments({
       {files.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
           {files.map(doc => (
-            <a
-              key={doc.id}
-              href={doc.signedUrl ?? undefined}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px', textDecoration: 'none' }}
-            >
-              <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.name}</div>
-                <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
-                  {doc.file_size_bytes ? `${formatFileSize(doc.file_size_bytes)} · ` : ''}{formatDate(doc.created_at)} · {doc.shared_by === 'team' ? 'From NuAIg' : 'You attached this'}
+            <div key={doc.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px' }}>
+              <a
+                href={doc.signedUrl ?? undefined}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0, textDecoration: 'none' }}
+              >
+                <span style={{ fontSize: '14px', flexShrink: 0 }}>{FILE_ICON[doc.file_type?.toLowerCase() ?? ''] ?? '📎'}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{doc.name}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>
+                    {doc.file_size_bytes ? `${formatFileSize(doc.file_size_bytes)} · ` : ''}{formatDate(doc.created_at)} · {doc.shared_by === 'team' ? 'From NuAIg' : 'You attached this'}
+                  </div>
                 </div>
-              </div>
-            </a>
+              </a>
+              {doc.shared_by === 'client' && (
+                <button onClick={() => handleDelete(doc)} title="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px', flexShrink: 0 }}>
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}

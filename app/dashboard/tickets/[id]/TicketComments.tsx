@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { Send, Pencil, Trash2, X, Check, Lock, Eye } from 'lucide-react'
-import { getInitials, formatDateTime } from '@/lib/utils'
+import { getInitials, formatDateTime, escapeRegExp } from '@/lib/utils'
 import { postTicketComment, editTicketComment, deleteTicketComment } from '@/lib/tickets/team-actions'
 import { createBrowserClient } from '@/lib/supabase/client'
 import type { TicketComment, TeamMember, TicketType } from '@/types'
@@ -21,6 +21,7 @@ export default function TicketComments({
   currentTeamMemberId,
   ticketType,
   canAct = true,
+  canModerate = false,
 }: {
   ticketId: string
   initialComments: EnrichedComment[]
@@ -28,9 +29,24 @@ export default function TicketComments({
   currentTeamMemberId: string
   ticketType: TicketType
   canAct?: boolean
+  // Admin or this client's assigned Manager — can delete any comment on
+  // this ticket, not just their own ("Authors and managers delete
+  // comments", migration 010). Never grants edit — that stays author-only.
+  canModerate?: boolean
 }) {
   const [comments, setComments] = useState(initialComments)
   const [editingId, setEditingId] = useState<string | null>(null)
+
+  // Belt-and-suspenders on top of the append-time dedupe guards below: no
+  // matter how a duplicate id ends up in `comments` (a stray double append,
+  // a delayed Realtime replay racing an edit), never render it twice. Last
+  // occurrence wins so an in-place edit's latest body isn't shadowed by a
+  // stale earlier copy.
+  const dedupedComments = useMemo(() => {
+    const byId = new Map<string, EnrichedComment>()
+    for (const c of comments) byId.set(c.id, c)
+    return Array.from(byId.values())
+  }, [comments])
 
   // Team members have real Supabase Auth sessions, so unlike the client
   // portal this can use genuine Realtime — new/edited/deleted comments show
@@ -74,23 +90,32 @@ export default function TicketComments({
       toast.error(result.error)
       return false
     }
-    setComments(cur => [
-      ...cur,
-      {
-        id: result.id,
-        ticket_id: ticketId,
-        body,
-        edited_at: null,
-        mentioned_team_member_ids: mentionedIds,
-        created_by_team_member_id: currentTeamMemberId,
-        created_by_client_name: null,
-        visible_to_client: visibleToClient,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        author_member: candidateMentions.find(m => m.id === currentTeamMemberId),
-        mention_members: candidateMentions.filter(m => mentionedIds.includes(m.id)),
-      } as EnrichedComment,
-    ])
+    // The Realtime INSERT handler above may already have appended this same
+    // row by the time this await resolves (postTicketComment does several
+    // more awaited steps — notifications, email — before returning, while
+    // the DB commit and its Realtime broadcast can reach this same browser
+    // tab well before that response does). Without this guard the comment
+    // was landing in the thread twice.
+    setComments(cur => {
+      if (cur.some(c => c.id === result.id)) return cur
+      return [
+        ...cur,
+        {
+          id: result.id,
+          ticket_id: ticketId,
+          body,
+          edited_at: null,
+          mentioned_team_member_ids: mentionedIds,
+          created_by_team_member_id: currentTeamMemberId,
+          created_by_client_name: null,
+          visible_to_client: visibleToClient,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          author_member: candidateMentions.find(m => m.id === currentTeamMemberId),
+          mention_members: candidateMentions.filter(m => mentionedIds.includes(m.id)),
+        } as EnrichedComment,
+      ]
+    })
     return true
   }
 
@@ -117,7 +142,7 @@ export default function TicketComments({
   return (
     <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '18px' }}>
       <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '14px' }}>
-        Comments{comments.length > 0 ? ` (${comments.length})` : ''}
+        Comments{dedupedComments.length > 0 ? ` (${dedupedComments.length})` : ''}
       </div>
 
       {ticketType === 'internal' && (
@@ -139,12 +164,12 @@ export default function TicketComments({
         </div>
       )}
 
-      {comments.length === 0 ? (
+      {dedupedComments.length === 0 ? (
         <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '12px' }}>No comments yet.</p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <AnimatePresence initial={false}>
-            {comments.map(c => {
+            {dedupedComments.map(c => {
               const isEditing = editingId === c.id
               const mine = c.created_by_team_member_id === currentTeamMemberId
               const authorName = c.created_by_client_name ?? c.author_member?.name ?? 'Team member'
@@ -193,10 +218,10 @@ export default function TicketComments({
                     )}
                   </div>
 
-                  {!isEditing && mine && (
+                  {!isEditing && (mine || canModerate) && (
                     <div style={{ display: 'flex', gap: '2px', flexShrink: 0 }}>
-                      <button onClick={() => setEditingId(c.id)} style={iconBtn}><Pencil size={13} /></button>
-                      <button onClick={() => handleDelete(c.id)} style={iconBtn}><Trash2 size={13} /></button>
+                      {mine && <button onClick={() => setEditingId(c.id)} style={iconBtn}><Pencil size={13} /></button>}
+                      <button onClick={() => handleDelete(c.id)} title={mine ? undefined : "Delete — you're an admin or this client's Manager"} style={iconBtn}><Trash2 size={13} /></button>
                     </div>
                   )}
                 </motion.div>
@@ -255,7 +280,14 @@ function Composer({
     : []
 
   function mentionedIdsInText() {
-    return candidateMentions.filter(m => text.includes(`@${m.name}`)).map(m => m.id)
+    // A plain text.includes() here would also match "@Sam" inside a
+    // "@Samantha " insertion whenever one candidate's name is a prefix of
+    // another's — spuriously notifying/mentioning the shorter-named person
+    // too. Require the match not be immediately followed by another
+    // word character, so only whole-name mentions count.
+    return candidateMentions
+      .filter(m => new RegExp(`@${escapeRegExp(m.name)}(?![\\w])`).test(text))
+      .map(m => m.id)
   }
 
   async function submit() {

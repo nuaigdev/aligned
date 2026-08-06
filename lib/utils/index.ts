@@ -82,6 +82,11 @@ export function getPortalLoginUrl(): string {
   return `${base}/portal/login`
 }
 
+// ── Regex escaping ────────────────────────────────────────────
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // ── Initials from name ────────────────────────────────────────
 export function getInitials(name: string): string {
   return name

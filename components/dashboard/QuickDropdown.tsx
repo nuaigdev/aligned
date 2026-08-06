@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
 
@@ -26,12 +28,28 @@ export function QuickDropdown({
   trigger: React.ReactNode
   children: React.ReactNode
 }) {
+  // Mounted-check for the portal target (document.body isn't available
+  // during SSR) — the outside-click catcher below is rendered there
+  // rather than in place.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   return (
     <div style={{ position: 'relative' }}>
       <div onClick={e => { e.preventDefault(); e.stopPropagation(); onToggle() }}>{trigger}</div>
       {open && (
         <>
-          <div onClick={e => { e.preventDefault(); e.stopPropagation(); onToggle() }} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+          {mounted && createPortal(
+            // Portaled to <body> rather than rendered inline: this trigger
+            // commonly sits inside a container with overflow: hidden (e.g.
+            // TicketPropertiesPanel), and a full-viewport fixed div nested
+            // inside one breaks the browser's scroll-chaining — wheel
+            // scrolling over it would silently do nothing ("frozen"
+            // scrollbar) instead of falling through to the page. Living
+            // outside that ancestor avoids the problem entirely.
+            <div onClick={e => { e.preventDefault(); e.stopPropagation(); onToggle() }} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />,
+            document.body
+          )}
           <motion.div
             initial={{ opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}

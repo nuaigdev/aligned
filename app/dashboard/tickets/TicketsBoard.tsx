@@ -99,6 +99,10 @@ export default function TicketsBoard({
     if (groupBy === 'status') {
       if (ticket.status !== laneKey) applyFieldChange(ticketId, 'status', laneKey)
     } else if (groupBy === 'priority') {
+      if (ticket.created_by_client_name) {
+        toast.error("This ticket's priority was set by the client and can't be changed.")
+        return
+      }
       if (ticket.priority !== laneKey) applyFieldChange(ticketId, 'priority', laneKey)
     } else {
       const current = (ticket.assignee_members ?? []).map(m => m.id)

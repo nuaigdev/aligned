@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
+import { createProjectAssignmentNotification } from '@/lib/notifications/create'
 
 async function currentTeamMemberId(): Promise<string | null> {
   const supabase = createSupabaseServerClient()
@@ -31,6 +32,9 @@ export async function addProjectMember(projectId: string, teamMemberId: string):
     return { error: 'Could not add them — you may not have access to manage this project\'s team.' }
   }
 
+  const { data: project } = await supabase.from('projects').select('name').eq('id', projectId).maybeSingle()
+  await createProjectAssignmentNotification(supabase, [teamMemberId], callerId, projectId, project?.name ?? 'a project')
+
   revalidatePath(`/dashboard/projects/${projectId}`)
   return { ok: true }
 }
@@ -46,7 +50,16 @@ export async function removeProjectMember(projectId: string, teamMemberId: strin
     .eq('project_id', projectId)
     .eq('team_member_id', teamMemberId)
 
-  if (error) return { error: 'Could not remove them — you may not have access to manage this project\'s team.' }
+  if (error) {
+    // can_remove_project_member (migration 043) blocks removing the
+    // client's assigned Manager unless the caller is an admin — give
+    // that specific case a clearer message than the generic fallback.
+    const { data: project } = await supabase.from('projects').select('client_id, clients(manager_id)').eq('id', projectId).maybeSingle()
+    if ((project?.clients as any)?.manager_id === teamMemberId) {
+      return { error: "This client's assigned Manager can't be removed from the project — ask an admin." }
+    }
+    return { error: 'Could not remove them — you may not have access to manage this project\'s team.' }
+  }
 
   revalidatePath(`/dashboard/projects/${projectId}`)
   return { ok: true }

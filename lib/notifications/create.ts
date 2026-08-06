@@ -27,6 +27,37 @@ export async function createTicketNotifications(
   )
 }
 
+/**
+ * Notifies a team member they were added to a project — the one gap
+ * in the notification set: addProjectMember() (lib/projects/members-
+ * actions.ts) used to add the project_members row with no signal to
+ * the person actually added. Not ticket-scoped, so ticket_id is null
+ * and link_path points at the project hub instead (see NotificationBell.tsx's
+ * link_path ?? ticket_id fallback).
+ */
+export async function createProjectAssignmentNotification(
+  supabase: SupabaseClient,
+  recipientIds: string[],
+  actorId: string | null,
+  projectId: string,
+  projectName: string
+) {
+  const targets = Array.from(new Set(recipientIds)).filter(id => id && id !== actorId)
+  if (targets.length === 0) return
+
+  const actor = await getActorName(supabase, actorId)
+  await supabase.from('notifications').insert(
+    targets.map(team_member_id => ({
+      team_member_id,
+      type: 'project_assigned' as const,
+      title: 'Added to a project',
+      body: `${actor} added you to ${projectName}`,
+      ticket_id: null,
+      link_path: `/dashboard/projects/${projectId}`,
+    }))
+  )
+}
+
 export async function getActorName(supabase: SupabaseClient, teamMemberId: string | null): Promise<string> {
   if (!teamMemberId) return 'Someone'
   const { data } = await supabase.from('team_members').select('name').eq('id', teamMemberId).maybeSingle()

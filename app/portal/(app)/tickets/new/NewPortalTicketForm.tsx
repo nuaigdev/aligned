@@ -1,12 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { createPortalTicket } from '@/lib/tickets/portal-actions'
+import { Paperclip, Upload, X } from 'lucide-react'
+import { createPortalTicket, uploadDraftPortalAttachment, removeDraftPortalAttachment } from '@/lib/tickets/portal-actions'
+import { formatFileSize } from '@/lib/utils'
 import ContactNamePicker, { useRememberedContactName } from '../ContactNamePicker'
 import type { TicketPriority } from '@/types'
+
+interface DraftAttachment {
+  storage_path: string
+  name: string
+  file_type: string | null
+  file_size_bytes: number
+}
 
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', border: '0.5px solid var(--border-medium)', borderRadius: '8px',
@@ -45,6 +54,37 @@ export default function NewPortalTicketForm({
   const [priority, setPriority] = useState<TicketPriority>('medium')
   const [projectId, setProjectId] = useState('')
   const [saving, setSaving] = useState(false)
+  const [attachments, setAttachments] = useState<DraftAttachment[]>([])
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  async function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+
+    setUploading(true)
+    const formData = new FormData()
+    formData.set('file', file)
+    const result = await uploadDraftPortalAttachment(formData)
+    setUploading(false)
+
+    if ('error' in result) {
+      toast.error(result.error)
+      return
+    }
+    setAttachments(cur => [...cur, result])
+  }
+
+  async function handleRemoveAttachment(a: DraftAttachment) {
+    setAttachments(cur => cur.filter(x => x.storage_path !== a.storage_path))
+    const result = await removeDraftPortalAttachment(a.storage_path)
+    if ('error' in result) {
+      // Already removed from the list — surface the failure but don't
+      // re-add it, the file object is still selectable again if needed.
+      toast.error(result.error)
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -59,6 +99,7 @@ export default function NewPortalTicketForm({
       priority: canSetPriority ? priority : undefined,
       project_id: projectId || undefined,
       contact_name: contactName,
+      attachments: attachments.length > 0 ? attachments : undefined,
     })
     setSaving(false)
 
@@ -122,6 +163,48 @@ export default function NewPortalTicketForm({
           </select>
         </div>
       )}
+
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: attachments.length > 0 ? '6px' : '4px' }}>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Paperclip size={12} /> Attachments
+          </span>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: uploading ? 'default' : 'pointer', color: 'var(--brand-600)', fontSize: '12px' }}
+          >
+            <Upload size={12} /> {uploading ? 'Uploading…' : 'Attach a file'}
+          </button>
+          <input ref={fileInputRef} type="file" onChange={handleFileInput} style={{ display: 'none' }} />
+        </div>
+
+        {attachments.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {attachments.map(a => (
+              <div key={a.storage_path} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 9px', background: 'var(--bg-tertiary)', borderRadius: '7px' }}>
+                <span style={{ fontSize: '14px', flexShrink: 0 }}>📎</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text-tertiary)' }}>{formatFileSize(a.file_size_bytes)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveAttachment(a)}
+                  title="Remove — wrong file attached by mistake"
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-tertiary)', display: 'flex', padding: '3px' }}
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', margin: attachments.length > 0 ? '6px 0 0' : '4px 0 0' }}>
+          You can remove a file here before submitting. Once the ticket is raised, attachments become a permanent part of the record.
+        </p>
+      </div>
 
       <button
         type="submit"

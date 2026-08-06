@@ -108,6 +108,7 @@ export async function updateTicket(
     description: string | null
     status: TicketStatus
     priority: TicketPriority
+    internal_priority: TicketPriority | null
     category: string
     due_date: string | null
     blocked_on: 'client' | 'team' | null
@@ -124,12 +125,21 @@ export async function updateTicket(
   // freely in either direction. Also captures the pre-update type so we can
   // tell an internal→client flip (the client's first look at this ticket)
   // apart from a client ticket just staying a client ticket.
+  //
+  // Priority works the other way: once the client has set it themselves
+  // (created_by_client_name is set), the team can no longer change it —
+  // internal_priority (migration 042) is the team's own, always-editable
+  // field for planning instead. Both checks need created_by_client_name, so
+  // one fetch covers them.
   let previousTicketType: TicketType | undefined
-  if (patch.ticket_type) {
+  if (patch.ticket_type || patch.priority !== undefined) {
     const { data: existing } = await supabase.from('tickets').select('created_by_client_name, ticket_type').eq('id', ticketId).maybeSingle()
     previousTicketType = existing?.ticket_type
     if (patch.ticket_type === 'internal' && existing?.created_by_client_name) {
       return { error: 'This ticket was raised by the client and can only stay a client ticket.' }
+    }
+    if (patch.priority !== undefined && existing?.created_by_client_name) {
+      return { error: "This ticket's priority was set by the client and can't be changed — use internal priority for your own planning." }
     }
   }
 

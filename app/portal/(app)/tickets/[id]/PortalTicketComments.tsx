@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { Send, Pencil, Trash2, X, Check } from 'lucide-react'
 import { postPortalComment, editPortalComment, deletePortalComment, getPortalTicketComments } from '@/lib/tickets/portal-actions'
-import { formatDateTime, getInitials } from '@/lib/utils'
+import { formatDateTime, getInitials, escapeRegExp } from '@/lib/utils'
 import ContactNamePicker, { useRememberedContactName } from '../ContactNamePicker'
 
 const POLL_INTERVAL_MS = 6000
@@ -39,6 +39,15 @@ export default function PortalTicketComments({
   const [contactName, setContactName] = useRememberedContactName()
   const [editingId, setEditingId] = useState<string | null>(null)
 
+  // Same defensive dedupe as the dashboard-side TicketComments.tsx — never
+  // render a duplicate id, however it got into state (a stray double
+  // append, a poll racing an optimistic add). Last occurrence wins.
+  const dedupedComments = useMemo(() => {
+    const byId = new Map<string, PortalComment>()
+    for (const c of comments) byId.set(c.id, c)
+    return Array.from(byId.values())
+  }, [comments])
+
   // No Supabase Auth session to authenticate a Realtime subscription with
   // here (see the equivalent dashboard-side comment in TicketComments.tsx),
   // so polling stands in — replies show up within a few seconds instead of
@@ -66,9 +75,16 @@ export default function PortalTicketComments({
       toast.error(result.error)
       return false
     }
-    setComments(cur => [...cur, {
-      id: result.id, body, created_at: new Date().toISOString(), created_by_client_name: contactName,
-    }])
+    // Guard against the poll (every POLL_INTERVAL_MS) landing between the
+    // insert committing and this response coming back — same race as the
+    // dashboard side's Realtime handler, same fix: don't add a comment
+    // that's already present.
+    setComments(cur => {
+      if (cur.some(c => c.id === result.id)) return cur
+      return [...cur, {
+        id: result.id, body, created_at: new Date().toISOString(), created_by_client_name: contactName,
+      }]
+    })
     return true
   }
 
@@ -96,17 +112,17 @@ export default function PortalTicketComments({
   return (
     <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '18px' }}>
       <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '14px' }}>
-        Conversation{comments.length > 0 ? ` (${comments.length})` : ''}
+        Conversation{dedupedComments.length > 0 ? ` (${dedupedComments.length})` : ''}
       </div>
 
-      {comments.length === 0 ? (
+      {dedupedComments.length === 0 ? (
         <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', textAlign: 'center', padding: '12px' }}>
           No replies yet — NuAIg will get back to you here.
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '18px' }}>
           <AnimatePresence initial={false}>
-            {comments.map(c => {
+            {dedupedComments.map(c => {
               const isClient = !!c.created_by_client_name
               const name = c.created_by_client_name ?? c.author_name ?? 'NuAIg team'
               const isEditing = editingId === c.id
@@ -198,7 +214,12 @@ function Composer({
     : []
 
   function mentionedIdsInText() {
-    return candidateMentions.filter(m => text.includes(`@${m.name}`)).map(m => m.id)
+    // See the equivalent comment in the dashboard-side TicketComments.tsx —
+    // a plain text.includes() would also match "@Sam" inside "@Samantha ",
+    // spuriously including the shorter-named candidate.
+    return candidateMentions
+      .filter(m => new RegExp(`@${escapeRegExp(m.name)}(?![\\w])`).test(text))
+      .map(m => m.id)
   }
 
   async function submit() {

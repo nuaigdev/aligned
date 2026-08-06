@@ -78,7 +78,7 @@ export default function TicketCard({
               <Building2 size={9} /> Client
             </span>
           )}
-          {onPriorityChange ? (
+          {onPriorityChange && !ticket.created_by_client_name ? (
             <QuickDropdown
               open={priorityOpen}
               onToggle={() => setPriorityOpen(o => !o)}
@@ -95,8 +95,19 @@ export default function TicketCard({
               ))}
             </QuickDropdown>
           ) : (
-            <span style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: `${priorityColor}18`, color: priorityColor, fontWeight: 500 }}>
+            <span
+              title={ticket.created_by_client_name ? "Set by the client — can't be changed by the team" : undefined}
+              style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: `${priorityColor}18`, color: priorityColor, fontWeight: 500 }}
+            >
               {TICKET_PRIORITY_LABELS[ticket.priority]}
+            </span>
+          )}
+          {ticket.internal_priority && (
+            <span
+              title="Internal priority — for the team's own planning"
+              style={{ fontSize: '10px', padding: '2px 7px', borderRadius: '8px', background: 'var(--bg-tertiary)', color: 'var(--text-secondary)', fontWeight: 500 }}
+            >
+              Internal: {TICKET_PRIORITY_LABELS[ticket.internal_priority]}
             </span>
           )}
           {categoryLabel && (

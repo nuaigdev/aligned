@@ -15,6 +15,7 @@ export async function createPortalTicket(input: {
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   project_id?: string
   contact_name: string
+  attachments?: Array<{ storage_path: string; name: string; file_type: string | null; file_size_bytes: number }>
 }): Promise<{ id: string } | { error: string }> {
   const session = await requireClientSession()
   if (!input.title.trim()) return { error: 'Give the ticket a title.' }
@@ -55,6 +56,26 @@ export async function createPortalTicket(input: {
 
   if (error || !ticket) {
     return { error: error?.message || 'Could not create the ticket.' }
+  }
+
+  // Files picked in the form were already uploaded to storage under a
+  // per-session draft prefix (uploadDraftPortalAttachment below) so they
+  // could be removed pre-submit; now that the ticket exists, turn each into
+  // a permanent documents row. Once this runs there's no client-facing
+  // delete for these (see PortalTicketAttachments.tsx / migration 044) —
+  // a client's attachment is meant to be a permanent part of the record.
+  if (input.attachments && input.attachments.length > 0) {
+    await supabase.from('documents').insert(
+      input.attachments.map(a => ({
+        project_id: input.project_id || null,
+        ticket_id: ticket.id,
+        name: a.name,
+        storage_path: a.storage_path,
+        file_type: a.file_type,
+        file_size_bytes: a.file_size_bytes,
+        shared_by: 'client' as const,
+      }))
+    )
   }
 
   // Notify the client's assigned Manager in-app — they're a real Supabase
@@ -290,5 +311,92 @@ export async function uploadPortalAttachment(formData: FormData): Promise<{ ok: 
 
   revalidatePath(`/portal/tickets/${ticketId}`)
   revalidatePath(`/dashboard/tickets/${ticketId}`)
+  return { ok: true }
+}
+
+/**
+ * A client can remove an attachment they added themselves — but never one
+ * the team added (shared_by check below), and the RLS override on
+ * documents_ticket_attachment_delete (migration 044) that lets an admin
+ * remove a client's attachment doesn't apply here at all: the portal
+ * always uses the service-role client and does its own authorization
+ * (rule 4), scoped to "this client's own ticket, this client's own
+ * upload" — the shared portal login is one identity for the whole
+ * company, not per-contact, so any user under that login can manage any
+ * of the client's own attachments, same as editPortalComment.
+ */
+export async function deletePortalAttachment(documentId: string): Promise<{ ok: true } | { error: string }> {
+  const session = await requireClientSession()
+  const supabase = createServiceRoleClient()
+
+  const { data: doc } = await supabase
+    .from('documents')
+    .select('id, ticket_id, storage_path, shared_by, tickets!inner(client_id, ticket_type)')
+    .eq('id', documentId)
+    .maybeSingle()
+
+  if (
+    !doc
+    || doc.shared_by !== 'client'
+    || (doc.tickets as any)?.client_id !== session.clientId
+    || (doc.tickets as any)?.ticket_type !== 'client'
+  ) {
+    return { error: 'That attachment is not part of your account.' }
+  }
+
+  await supabase.storage.from('project-documents').remove([doc.storage_path])
+  const { error } = await supabase.from('documents').delete().eq('id', documentId)
+  if (error) return { error: error.message }
+
+  revalidatePath(`/portal/tickets/${doc.ticket_id}`)
+  revalidatePath(`/dashboard/tickets/${doc.ticket_id}`)
+  return { ok: true }
+}
+
+/**
+ * Attaching a file on the "New ticket" form, before the ticket exists yet.
+ * Uploads straight to storage under a per-client draft prefix — no
+ * `documents` row is created here, so removeDraftPortalAttachment can just
+ * delete the storage object outright rather than needing an ownership
+ * check against a DB row (there's nothing to scope the client to a
+ * documents row not yet in existence, and no ticket to attach it to).
+ * createPortalTicket() turns each surviving upload into a permanent
+ * documents row once the ticket is created.
+ */
+export async function uploadDraftPortalAttachment(formData: FormData): Promise<
+  | { storage_path: string; name: string; file_type: string | null; file_size_bytes: number }
+  | { error: string }
+> {
+  const session = await requireClientSession()
+  const file = formData.get('file') as File | null
+  if (!file) return { error: 'Missing file.' }
+
+  const supabase = createServiceRoleClient()
+  const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+  const storagePath = `tickets/draft/${session.clientId}/${Date.now()}_${safeName}`
+
+  const { error: storageErr } = await supabase.storage
+    .from('project-documents')
+    .upload(storagePath, file, { cacheControl: '3600', upsert: false })
+  if (storageErr) return { error: storageErr.message }
+
+  return { storage_path: storagePath, name: file.name, file_type: ext || null, file_size_bytes: file.size }
+}
+
+/** Remove a file attached before the ticket was submitted — see the note above. */
+export async function removeDraftPortalAttachment(storagePath: string): Promise<{ ok: true } | { error: string }> {
+  const session = await requireClientSession()
+
+  // The storage path is namespaced by clientId (uploadDraftPortalAttachment
+  // above) — this is the ownership check, since there's no documents row to
+  // check against for a not-yet-linked draft upload.
+  if (!storagePath.startsWith(`tickets/draft/${session.clientId}/`)) {
+    return { error: 'That file is not part of your account.' }
+  }
+
+  const supabase = createServiceRoleClient()
+  const { error } = await supabase.storage.from('project-documents').remove([storagePath])
+  if (error) return { error: error.message }
   return { ok: true }
 }

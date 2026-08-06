@@ -26,16 +26,23 @@ export default function TicketPropertiesPanel({
   initialAssigneeIds,
   clientProjects,
   canAct = true,
+  creatorName,
 }: {
   ticket: Ticket
   candidatePool: TeamMember[]
   initialAssigneeIds: string[]
   clientProjects: Array<{ id: string; name: string }>
   canAct?: boolean
+  // The client's own name for a client-raised ticket, or the actual team
+  // member's name for a team-raised one — resolved server-side (page.tsx)
+  // since it needs a lookup outside candidatePool (the creator may not be
+  // on this ticket's project anymore).
+  creatorName?: string
 }) {
   const router = useRouter()
   const [status, setStatus] = useState<TicketStatus>(ticket.status)
   const [priority, setPriority] = useState<TicketPriority>(ticket.priority)
+  const [internalPriority, setInternalPriority] = useState<TicketPriority | null>(ticket.internal_priority)
   const [category, setCategory] = useState(ticket.category)
   const [ticketType, setTicketType] = useState<TicketType>(ticket.ticket_type)
   const [projectId, setProjectId] = useState(ticket.project_id)
@@ -66,6 +73,13 @@ export default function TicketPropertiesPanel({
     setPriority(next)
     setOpenSection(null)
     if (!(await patch({ priority: next }, `Priority set to ${TICKET_PRIORITY_LABELS[next]}`))) setPriority(prev)
+  }
+
+  async function handleInternalPriorityChange(next: TicketPriority | null) {
+    const prev = internalPriority
+    setInternalPriority(next)
+    setOpenSection(null)
+    if (!(await patch({ internal_priority: next }, next ? `Internal priority set to ${TICKET_PRIORITY_LABELS[next]}` : 'Internal priority cleared'))) setInternalPriority(prev)
   }
 
   async function handleCategoryChange(next: string) {
@@ -188,7 +202,17 @@ export default function TicketPropertiesPanel({
       </PropertyRow>
 
       <PropertyRow label="Priority">
-        {canAct ? (
+        {ticket.created_by_client_name ? (
+          <span
+            title="Set by the client when they raised this ticket — the team can't change it. Use internal priority below for your own planning."
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: 500, textTransform: 'capitalize',
+              padding: '4px 9px', borderRadius: '7px', background: `${TICKET_PRIORITY_COLOR[priority]}18`, color: TICKET_PRIORITY_COLOR[priority],
+            }}
+          >
+            <Dot color={TICKET_PRIORITY_COLOR[priority]} /> {TICKET_PRIORITY_LABELS[priority]} <Lock size={10} />
+          </span>
+        ) : canAct ? (
           <QuickDropdown
             open={openSection === 'priority'}
             onToggle={() => setOpenSection(o => (o === 'priority' ? null : 'priority'))}
@@ -202,6 +226,35 @@ export default function TicketPropertiesPanel({
           </QuickDropdown>
         ) : (
           <PillTrigger color={TICKET_PRIORITY_COLOR[priority]} bg={`${TICKET_PRIORITY_COLOR[priority]}18`} label={TICKET_PRIORITY_LABELS[priority]} chevron={false} />
+        )}
+      </PropertyRow>
+
+      <PropertyRow label="Internal priority">
+        {canAct ? (
+          <QuickDropdown
+            open={openSection === 'internal_priority'}
+            onToggle={() => setOpenSection(o => (o === 'internal_priority' ? null : 'internal_priority'))}
+            trigger={
+              internalPriority ? (
+                <PillTrigger color={TICKET_PRIORITY_COLOR[internalPriority]} bg={`${TICKET_PRIORITY_COLOR[internalPriority]}18`} label={TICKET_PRIORITY_LABELS[internalPriority]} />
+              ) : (
+                <PillTrigger color="var(--text-tertiary)" bg="var(--bg-tertiary)" label="Not set" />
+              )
+            }
+          >
+            <DropdownItem onClick={() => handleInternalPriorityChange(null)} active={!internalPriority}>
+              Not set
+            </DropdownItem>
+            {(Object.keys(TICKET_PRIORITY_LABELS) as TicketPriority[]).map(p => (
+              <DropdownItem key={p} onClick={() => handleInternalPriorityChange(p)} active={p === internalPriority}>
+                <Dot color={TICKET_PRIORITY_COLOR[p]} /> {TICKET_PRIORITY_LABELS[p]}
+              </DropdownItem>
+            ))}
+          </QuickDropdown>
+        ) : internalPriority ? (
+          <PillTrigger color={TICKET_PRIORITY_COLOR[internalPriority]} bg={`${TICKET_PRIORITY_COLOR[internalPriority]}18`} label={TICKET_PRIORITY_LABELS[internalPriority]} chevron={false} />
+        ) : (
+          <PillTrigger color="var(--text-tertiary)" bg="var(--bg-tertiary)" label="Not set" chevron={false} />
         )}
       </PropertyRow>
 
@@ -340,7 +393,7 @@ export default function TicketPropertiesPanel({
       <div style={{ padding: '12px 14px', borderTop: '0.5px solid var(--border-default)' }}>
         <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '4px' }}>Raised</div>
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-          By {ticket.created_by_client_name ?? 'a team member'} · {formatDate(ticket.created_at)}
+          By {creatorName ?? ticket.created_by_client_name ?? 'a team member'} · {formatDate(ticket.created_at)}
         </div>
       </div>
     </div>

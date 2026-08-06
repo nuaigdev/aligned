@@ -24,7 +24,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: assignees }, { data: rawComments }, { data: teamMembers }, { data: documents }, { data: clientProjects }, { data: projectMemberRows }, canActResult] = await Promise.all([
+  const [{ data: assignees }, { data: rawComments }, { data: teamMembers }, { data: documents }, { data: clientProjects }, { data: projectMemberRows }, canActResult, isAdminResult, canModerateCommentsResult] = await Promise.all([
     supabase.from('ticket_assignees').select('team_member_id').eq('ticket_id', ticket.id),
     supabase.from('ticket_comments').select('*').eq('ticket_id', ticket.id).order('created_at'),
     supabase.from('team_members').select('*').eq('is_active', true).order('name'),
@@ -36,12 +36,26 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
     user
       ? supabase.rpc('can_edit_ticket', { p_ticket_id: ticket.id, p_user_id: user.id })
       : Promise.resolve({ data: false }),
+    user
+      ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    user
+      ? supabase.rpc('is_client_manager_or_admin', { p_client_id: ticket.client_id, p_user_id: user.id })
+      : Promise.resolve({ data: false }),
   ])
 
   // Whether the viewer can comment/change properties/assign/attach — anyone
   // can view any ticket (migration 038), acting on one is scoped to the
   // ticket's project team (or admin/the client's Manager/creator/assignee).
   const canAct = canActResult.data === true
+  // Admin only — a client's attachment isn't removable by the client's
+  // Manager or an ordinary teammate, just an admin (migration 044). The
+  // client themselves can still remove their own via the portal.
+  const canDeleteClientDocs = (isAdminResult.data as any)?.role === 'admin'
+  // Admin or this client's assigned Manager — can delete any comment on
+  // this ticket, not just their own ("Authors and managers delete
+  // comments", migration 010 — the UI just wasn't exposing that case before).
+  const canModerateComments = canModerateCommentsResult.data === true
 
   const client = ticket.clients as any
   const clientCode = client?.slug ? ticketClientCode(client.slug) : undefined
@@ -58,6 +72,14 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
       )
 
   const memberById = new Map(members.map((m: any) => [m.id, m]))
+  // "Raised by" fallback for a team-created ticket — created_by_client_name
+  // is only ever set for a client-raised one (dual-authorship CHECK
+  // constraint), so the team-raised case needs an explicit name lookup
+  // instead of a generic "a team member" placeholder. Falls back to that
+  // placeholder only if the creator has since been deactivated/removed.
+  const creatorName = ticket.created_by_client_name
+    ?? (ticket.created_by_team_member_id ? memberById.get(ticket.created_by_team_member_id)?.name : undefined)
+    ?? 'a team member'
   const comments = (rawComments ?? []).map((c: any) => ({
     ...c,
     author_member: c.created_by_team_member_id ? memberById.get(c.created_by_team_member_id) : undefined,
@@ -107,6 +129,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
             projectId={ticket.project_id}
             initialDocuments={documentsWithUrls}
             canAct={canAct}
+            canDeleteClientDocs={canDeleteClientDocs}
           />
           <TicketComments
             ticketId={ticket.id}
@@ -115,6 +138,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
             currentTeamMemberId={user?.id ?? ''}
             ticketType={ticket.ticket_type}
             canAct={canAct}
+            canModerate={canModerateComments}
           />
         </div>
 
@@ -125,6 +149,7 @@ export default async function TicketDetailPage({ params }: { params: { id: strin
             initialAssigneeIds={(assignees ?? []).map(a => a.team_member_id)}
             clientProjects={clientProjects ?? []}
             canAct={canAct}
+            creatorName={creatorName}
           />
         </div>
       </div>
