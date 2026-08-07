@@ -11,7 +11,7 @@ export default async function DashboardLayout({
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  if (!user) redirect('/login')
+  if (!user) redirect('/nuaig-login')
 
   const { data: member } = await supabase
     .from('team_members')

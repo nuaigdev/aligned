@@ -31,7 +31,7 @@ export default function DashboardHeader({ member }: Props) {
 
   async function handleSignOut() {
     await supabase.auth.signOut()
-    router.push('/login')
+    router.push('/nuaig-login')
     router.refresh()
   }
 

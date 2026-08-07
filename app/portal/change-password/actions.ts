@@ -19,26 +19,26 @@ export async function changeClientPassword(
   }
 
   const supabase = createServiceRoleClient()
-  const { data: client } = await supabase
-    .from('clients')
+  const { data: login } = await supabase
+    .from('client_logins')
     .select('password_hash')
-    .eq('id', session.clientId)
+    .eq('id', session.clientLoginId)
     .maybeSingle()
 
-  if (!client?.password_hash) {
-    return { error: 'No password is set on this account yet — ask your NuAIg contact to issue one.' }
+  if (!login?.password_hash) {
+    return { error: 'No password is set on this login yet — ask your NuAIg contact to issue one.' }
   }
 
-  const valid = await verifyPassword(currentPassword, client.password_hash)
+  const valid = await verifyPassword(currentPassword, login.password_hash)
   if (!valid) {
     return { error: 'Current password is incorrect.' }
   }
 
   const newHash = await hashPassword(newPassword)
   const { error } = await supabase
-    .from('clients')
+    .from('client_logins')
     .update({ password_hash: newHash, must_change_password: false })
-    .eq('id', session.clientId)
+    .eq('id', session.clientLoginId)
 
   if (error) return { error: error.message }
 

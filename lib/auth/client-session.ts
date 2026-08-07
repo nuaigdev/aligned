@@ -2,11 +2,12 @@
 // Client (portal) authentication — the credential + session layer
 // that replaced the old per-project portal_token URL.
 //
-// One shared login id/password per client company (not per
-// contact). Session token logic lives in client-session-core.ts
-// (jose only, Edge-safe, importable from middleware.ts); this file
-// adds bcryptjs-based password hashing on top, which is Node-only
-// and must NEVER be imported by middleware.
+// A client can have several named logins (client_logins table) —
+// each with its own independent login id/password, all sharing the
+// same client-scoped portal view. Session token logic lives in
+// client-session-core.ts (jose only, Edge-safe, importable from
+// middleware.ts); this file adds bcryptjs-based password hashing on
+// top, which is Node-only and must NEVER be imported by middleware.
 // ============================================================
 
 import bcrypt from 'bcryptjs'

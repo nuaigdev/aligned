@@ -8,20 +8,43 @@ import { sendTicketConfirmationEmail } from '@/lib/email/index'
 import { getTicketContactRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
 import { ticketClientCode } from '@/lib/utils'
 
+/**
+ * Resolves the display name for whoever is authenticated right now, from
+ * client_logins rather than a manually typed "posting as" field — also
+ * doubles as a live is_active check, so a login revoked mid-session can't
+ * keep authoring tickets/comments after that (session-guard's
+ * requireClientSession alone doesn't check this).
+ */
+async function requireActiveLoginName(
+  supabase: ReturnType<typeof createServiceRoleClient>,
+  session: { clientLoginId: string }
+): Promise<string | { error: string }> {
+  const { data: login } = await supabase
+    .from('client_logins')
+    .select('contact_name, is_active')
+    .eq('id', session.clientLoginId)
+    .maybeSingle()
+  if (!login || !login.is_active) {
+    return { error: 'Your login is no longer active — ask your NuAIg contact to reissue it.' }
+  }
+  return login.contact_name
+}
+
 export async function createPortalTicket(input: {
   title: string
   description?: string
   category?: string
   priority?: 'low' | 'medium' | 'high' | 'urgent'
   project_id?: string
-  contact_name: string
   attachments?: Array<{ storage_path: string; name: string; file_type: string | null; file_size_bytes: number }>
 }): Promise<{ id: string } | { error: string }> {
   const session = await requireClientSession()
   if (!input.title.trim()) return { error: 'Give the ticket a title.' }
-  if (!input.contact_name.trim()) return { error: 'Let us know who this is from.' }
 
   const supabase = createServiceRoleClient()
+
+  const contactName = await requireActiveLoginName(supabase, session)
+  if (typeof contactName !== 'string') return contactName
 
   // Defense in depth: a project_id, if given, must actually belong to this client —
   // the portal bypasses RLS via the service-role client, so this check is what
@@ -49,7 +72,7 @@ export async function createPortalTicket(input: {
       // exclusively a team-side classification (see migration 033).
       ticket_type: 'client',
       priority: input.priority || 'medium',
-      created_by_client_name: input.contact_name.trim(),
+      created_by_client_name: contactName,
     })
     .select('id, ref_number')
     .single()
@@ -85,7 +108,7 @@ export async function createPortalTicket(input: {
     await createTicketNotifications(
       supabase, [client.manager_id], null, 'ticket_updated',
       'New ticket from a client',
-      `${input.contact_name.trim()} (${client.name}) logged "${input.title.trim()}"`,
+      `${contactName} (${client.name}) logged "${input.title.trim()}"`,
       ticket.id
     )
   }
@@ -103,7 +126,7 @@ export async function createPortalTicket(input: {
     ticketId: ticket.id,
     refNumber: ticket.ref_number,
     title: input.title.trim(),
-    raisedByName: input.contact_name.trim(),
+    raisedByName: contactName,
     raisedByRole: 'client',
     clientCode: client?.slug ? ticketClientCode(client.slug) : undefined,
   })
@@ -120,14 +143,15 @@ export async function createPortalTicket(input: {
 export async function postPortalComment(input: {
   ticket_id: string
   body: string
-  contact_name: string
   mentioned_team_member_ids?: string[]
 }): Promise<{ id: string } | { error: string }> {
   const session = await requireClientSession()
   if (!input.body.trim()) return { error: 'Comment cannot be empty.' }
-  if (!input.contact_name.trim()) return { error: 'Let us know who this is from.' }
 
   const supabase = createServiceRoleClient()
+
+  const contactName = await requireActiveLoginName(supabase, session)
+  if (typeof contactName !== 'string') return contactName
 
   const { data: ticket } = await supabase
     .from('tickets')
@@ -146,7 +170,7 @@ export async function postPortalComment(input: {
     .insert({
       ticket_id: input.ticket_id,
       body: input.body.trim(),
-      created_by_client_name: input.contact_name.trim(),
+      created_by_client_name: contactName,
       mentioned_team_member_ids: mentionedIds,
     })
     .select('id, mentioned_team_member_ids')
@@ -168,7 +192,7 @@ export async function postPortalComment(input: {
   await createTicketNotifications(
     supabase, recipients, null, 'ticket_commented',
     'New client reply',
-    `${input.contact_name.trim()} replied on "${ticket.title}"`,
+    `${contactName} replied on "${ticket.title}"`,
     input.ticket_id
   )
 
@@ -176,7 +200,7 @@ export async function postPortalComment(input: {
     await createTicketNotifications(
       supabase, confirmedMentions, null, 'ticket_mentioned',
       'You were mentioned',
-      `${input.contact_name.trim()} mentioned you on "${ticket.title}"`,
+      `${contactName} mentioned you on "${ticket.title}"`,
       input.ticket_id
     )
   }

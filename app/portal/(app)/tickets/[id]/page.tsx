@@ -28,7 +28,7 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
 
   if (!ticket || ticket.client_id !== session.clientId || ticket.ticket_type !== 'client') notFound()
 
-  const [{ data: comments }, { data: contacts }, { data: teamMembers }, { data: documents }, { data: assigneeRows }] = await Promise.all([
+  const [{ data: comments }, { data: teamMembers }, { data: documents }, { data: assigneeRows }] = await Promise.all([
     // Only the client's own comments, or team comments explicitly marked as
     // a reply to the client — internal team notes never reach the portal.
     supabase
@@ -37,7 +37,6 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
       .eq('ticket_id', ticket.id)
       .or('created_by_client_name.not.is.null,visible_to_client.eq.true')
       .order('created_at'),
-    supabase.from('client_contacts').select('id, name').eq('client_id', client.id).eq('is_active', true).is('project_id', null).order('name'),
     supabase.from('team_members').select('id, name, role, manager_id').eq('is_active', true),
     supabase.from('documents').select('*').eq('ticket_id', ticket.id).order('created_at', { ascending: false }),
     supabase.from('ticket_assignees').select('team_members(name)').eq('ticket_id', ticket.id),
@@ -125,7 +124,7 @@ export default async function PortalTicketDetailPage({ params }: { params: { id:
       <PortalTicketComments
         ticketId={ticket.id}
         initialComments={enrichedComments}
-        contacts={contacts ?? []}
+        loginName={client.loginName}
         candidateMentions={candidateMentions}
       />
     </div>

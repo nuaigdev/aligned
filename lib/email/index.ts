@@ -3,7 +3,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { formatTicketRef } from '@/lib/utils'
 import type { TicketEmailRecipient } from '@/lib/tickets/contacts'
 
-const FROM = `${process.env.RESEND_FROM_NAME || 'NuAIg Aligned'} <${process.env.RESEND_FROM_EMAIL || 'noreply@nuaig.com'}>`
+const FROM = `${process.env.RESEND_FROM_NAME || 'NuAIg Assist'} <${process.env.RESEND_FROM_EMAIL || 'noreply@nuaig.com'}>`
 
 function portalUrl(path: string) {
   const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -143,7 +143,7 @@ export async function sendTicketConfirmationEmail({
       subject: `Ticket received — ${ref}`,
       html: `
         <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
-          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg · Aligned</p>
+          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg Assist</p>
           <h1 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">We've got your ticket</h1>
           <p style="font-size: 15px; color: #444; margin-bottom: 16px;">
             Hi ${r.name}, ${intro}
@@ -189,7 +189,7 @@ export async function sendTicketReplyEmail({
       subject: `New reply on ${ref} — ${title}`,
       html: `
         <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
-          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg · Aligned</p>
+          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg Assist</p>
           <h1 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${actorName} replied</h1>
           <p style="font-size: 14px; color: #444; margin-bottom: 4px;">Hi ${r.name},</p>
           <p style="font-size: 13px; color: #888; margin-bottom: 16px;">${ref} · ${title}</p>
@@ -226,7 +226,7 @@ export async function sendTicketResolvedEmail({
       subject: `Resolved — ${ref}`,
       html: `
         <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
-          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg · Aligned</p>
+          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg Assist</p>
           <h1 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">Marked as resolved</h1>
           <p style="font-size: 14px; color: #444; margin-bottom: 16px;">Hi ${r.name},</p>
           <div style="background: #eaf3de; border: 1px solid #b7d99a; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">
@@ -272,7 +272,7 @@ export async function sendTicketClosedEmail({
       subject: `Closed — ${ref}`,
       html: `
         <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
-          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg · Aligned</p>
+          <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg Assist</p>
           <h1 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">Ticket closed</h1>
           <p style="font-size: 14px; color: #444; margin-bottom: 16px;">Hi ${r.name},</p>
           <div style="background: #f1efe8; border: 1px solid #ddd8c8; border-radius: 8px; padding: 16px 20px; margin-bottom: 24px;">

@@ -7,10 +7,10 @@ export const dynamic = 'force-dynamic'
 export default async function ProfilePage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect('/nuaig-login')
 
   const { data: member } = await supabase.from('team_members').select('name, email, role').eq('id', user.id).maybeSingle()
-  if (!member) redirect('/login')
+  if (!member) redirect('/nuaig-login')
 
   return (
     <div style={{ maxWidth: '480px' }}>

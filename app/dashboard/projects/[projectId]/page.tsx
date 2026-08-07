@@ -2,8 +2,7 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
-import { ExternalLink, Ticket, Loader2, AlertTriangle, UserX } from 'lucide-react'
-import CopyButton from './CopyButton'
+import { Ticket, Loader2, AlertTriangle, UserX } from 'lucide-react'
 import DeleteConfirmButton from '@/components/dashboard/DeleteConfirmButton'
 import { deleteProject } from '@/lib/projects/actions'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -20,7 +19,7 @@ export default async function ProjectPage({ params }: { params: { projectId: str
 
   const { data: project } = await supabase
     .from('projects')
-    .select('*, clients(id, name, slug, login_id, manager_id, must_change_password, last_login_at, last_portal_seen_at, created_at, updated_at)')
+    .select('*, clients(id, name, slug, manager_id, last_portal_seen_at, created_at, updated_at)')
     .eq('id', params.projectId)
     .single()
 
@@ -106,33 +105,6 @@ export default async function ProjectPage({ params }: { params: { projectId: str
             {STATUS_LABEL[project.status] || project.status}
           </span>
         </div>
-      </div>
-
-      {/* Client access */}
-      <div style={{
-        background: 'var(--bg-primary)',
-        border: '0.5px solid var(--border-default)',
-        borderRadius: '10px',
-        padding: '12px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '10px',
-        marginBottom: '20px',
-      }}>
-        <ExternalLink size={14} color="#EA580C" />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '2px' }}>
-            {client?.login_id ? 'Client logs in with' : 'No client login issued yet'}
-          </div>
-          <div style={{ fontSize: '12px', color: '#EA580C', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {client?.login_id ?? (
-              <Link href={`/dashboard/clients/${client?.id}`} style={{ color: '#EA580C' }}>
-                Set one up on the client page →
-              </Link>
-            )}
-          </div>
-        </div>
-        {client?.login_id && <CopyButton text={client.login_id} />}
       </div>
 
       {/* Team */}

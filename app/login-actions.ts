@@ -10,27 +10,27 @@ export async function loginClient(loginId: string, password: string): Promise<{ 
   }
 
   const supabase = createServiceRoleClient()
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id, password_hash')
-    .eq('login_id', loginId.trim())
+  const { data: login } = await supabase
+    .from('client_logins')
+    .select('id, client_id, password_hash, is_active')
+    .eq('login_id', loginId.trim().toLowerCase())
     .maybeSingle()
 
-  if (!client?.password_hash) {
+  if (!login?.password_hash || !login.is_active) {
     return { error: 'Invalid login ID or password.' }
   }
 
-  const valid = await verifyPassword(password, client.password_hash)
+  const valid = await verifyPassword(password, login.password_hash)
   if (!valid) {
     return { error: 'Invalid login ID or password.' }
   }
 
   await supabase
-    .from('clients')
+    .from('client_logins')
     .update({ last_login_at: new Date().toISOString() })
-    .eq('id', client.id)
+    .eq('id', login.id)
 
-  await setClientSessionCookie(client.id)
+  await setClientSessionCookie(login.client_id, login.id)
   return {}
 }
 

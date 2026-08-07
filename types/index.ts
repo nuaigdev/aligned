@@ -1,5 +1,5 @@
 // ============================================================
-// Aligned — Core Types
+// NuAIg Assist — Core Types
 // These mirror the Supabase database schema exactly
 // ============================================================
 
@@ -57,18 +57,15 @@ export interface TeamMember {
 }
 
 /**
- * Client-facing row shape — deliberately excludes password_hash.
- * Anything that fetches a client for display in a component (team
- * or portal) should select this shape, never the raw DB row.
+ * Client-facing row shape. Portal login credentials no longer live on
+ * this row at all — see ClientLogin (migration 045): a client can have
+ * several independent named logins instead of one shared credential.
  */
 export interface Client {
   id: string
   name: string
   slug: string
   manager_id: string | null
-  login_id: string | null
-  must_change_password: boolean
-  last_login_at: string | null
   last_portal_seen_at: string | null
   created_at: string
   updated_at: string
@@ -77,15 +74,22 @@ export interface Client {
 }
 
 /**
- * Only ever read/written from server-side auth code
- * (lib/auth/client-session.ts, the credential-issuing action on the
- * client detail page). Never pass this to a client component.
+ * One named portal login for a client (migration 045) — independent
+ * id/password per contact, all seeing the same client-scoped portal
+ * data. Only ever read/written from server-side auth code
+ * (lib/auth/client-session.ts, lib/clients/access-actions.ts) or the
+ * admin-only management UI on the client detail page — password_hash
+ * itself should never reach a client component.
  */
-export interface ClientCredentials {
+export interface ClientLogin {
   id: string
-  login_id: string | null
-  password_hash: string | null
+  client_id: string
+  contact_name: string
+  login_id: string
   must_change_password: boolean
+  is_active: boolean
+  last_login_at: string | null
+  created_at: string
 }
 
 export interface ClientContact {

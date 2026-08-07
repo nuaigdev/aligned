@@ -8,14 +8,7 @@ export default async function NewPortalTicketPage() {
   const client = await getSessionClient()
   const supabase = createServiceRoleClient()
 
-  const [{ data: contacts }, { data: projects }, { data: setting }] = await Promise.all([
-    supabase
-      .from('client_contacts')
-      .select('id, name')
-      .eq('client_id', client.id)
-      .eq('is_active', true)
-      .is('project_id', null)
-      .order('name'),
+  const [{ data: projects }, { data: setting }] = await Promise.all([
     supabase.from('projects').select('id, name').eq('client_id', client.id).order('name'),
     supabase.from('app_settings').select('value').eq('key', 'ticket_client_can_set_priority').maybeSingle(),
   ])
@@ -28,7 +21,7 @@ export default async function NewPortalTicketPage() {
       <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', margin: '0 0 20px' }}>
         Tell us what's going on — we'll route it to the right person.
       </p>
-      <NewPortalTicketForm contacts={contacts ?? []} projects={projects ?? []} canSetPriority={canSetPriority} />
+      <NewPortalTicketForm projects={projects ?? []} canSetPriority={canSetPriority} />
     </div>
   )
 }

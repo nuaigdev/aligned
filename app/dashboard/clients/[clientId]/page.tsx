@@ -23,7 +23,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }, { count: ticketCount }, { data: me }] = await Promise.all([
+  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }, { count: ticketCount }, { data: me }, { data: logins }] = await Promise.all([
     supabase
       .from('clients')
       .select('*, projects(id, name, status, started_at, updated_at)')
@@ -54,6 +54,12 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
       .select('id', { count: 'exact', head: true })
       .eq('client_id', params.clientId),
     user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase
+      .from('client_logins')
+      .select('*')
+      .eq('client_id', params.clientId)
+      .eq('is_active', true)
+      .order('created_at'),
   ])
 
   if (!client) notFound()
@@ -170,16 +176,14 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
             clientId={params.clientId}
             managers={(managers ?? []) as any}
             currentManagerId={client.manager_id}
-            loginId={client.login_id}
-            mustChangePassword={client.must_change_password}
-            lastLoginAt={client.last_login_at}
+            logins={(logins ?? []) as any}
           />
         ) : (
           <div style={{ background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '10px', padding: '18px', fontSize: '13px', color: 'var(--text-secondary)' }}>
             <div style={{ marginBottom: '6px' }}>
               Manager: {(managers ?? []).find((m: any) => m.id === client.manager_id)?.name ?? 'None assigned'}
             </div>
-            <div>Portal login: {client.login_id ? 'Active' : 'Not set up'}</div>
+            <div>Portal logins: {(logins ?? []).length > 0 ? `${(logins ?? []).length} active` : 'Not set up'}</div>
             <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '8px' }}>Only admins can change manager assignment or portal credentials.</div>
           </div>
         )}

@@ -6,7 +6,6 @@ import toast from 'react-hot-toast'
 import { Send, Pencil, Trash2, X, Check } from 'lucide-react'
 import { postPortalComment, editPortalComment, deletePortalComment, getPortalTicketComments } from '@/lib/tickets/portal-actions'
 import { formatDateTime, getInitials, escapeRegExp } from '@/lib/utils'
-import ContactNamePicker, { useRememberedContactName } from '../ContactNamePicker'
 
 const POLL_INTERVAL_MS = 6000
 
@@ -27,16 +26,15 @@ interface PortalComment {
 export default function PortalTicketComments({
   ticketId,
   initialComments,
-  contacts,
+  loginName,
   candidateMentions,
 }: {
   ticketId: string
   initialComments: PortalComment[]
-  contacts: { id: string; name: string }[]
+  loginName: string
   candidateMentions: CandidateMember[]
 }) {
   const [comments, setComments] = useState(initialComments)
-  const [contactName, setContactName] = useRememberedContactName()
   const [editingId, setEditingId] = useState<string | null>(null)
 
   // Same defensive dedupe as the dashboard-side TicketComments.tsx — never
@@ -66,11 +64,7 @@ export default function PortalTicketComments({
   }, [ticketId])
 
   async function handleSubmit(body: string, mentionedIds: string[]) {
-    if (!contactName.trim()) {
-      toast.error('Let us know who this is from')
-      return false
-    }
-    const result = await postPortalComment({ ticket_id: ticketId, body, contact_name: contactName, mentioned_team_member_ids: mentionedIds })
+    const result = await postPortalComment({ ticket_id: ticketId, body, mentioned_team_member_ids: mentionedIds })
     if ('error' in result) {
       toast.error(result.error)
       return false
@@ -82,7 +76,7 @@ export default function PortalTicketComments({
     setComments(cur => {
       if (cur.some(c => c.id === result.id)) return cur
       return [...cur, {
-        id: result.id, body, created_at: new Date().toISOString(), created_by_client_name: contactName,
+        id: result.id, body, created_at: new Date().toISOString(), created_by_client_name: loginName,
       }]
     })
     return true
@@ -175,7 +169,7 @@ export default function PortalTicketComments({
       )}
 
       <div style={{ borderTop: comments.length > 0 ? '0.5px solid var(--border-default)' : 'none', paddingTop: comments.length > 0 ? '14px' : 0, display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        <ContactNamePicker contacts={contacts} value={contactName} onChange={setContactName} />
+        <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Replying as {loginName}</div>
         <Composer candidateMentions={candidateMentions} onSubmit={handleSubmit} />
       </div>
     </div>

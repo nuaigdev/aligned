@@ -19,8 +19,8 @@ export async function getClientSession(): Promise<ClientSessionPayload | null> {
   return verifyClientSessionToken(token)
 }
 
-export async function setClientSessionCookie(clientId: string) {
-  const token = await signClientSession(clientId)
+export async function setClientSessionCookie(clientId: string, clientLoginId: string) {
+  const token = await signClientSession(clientId, clientLoginId)
   cookies().set(CLIENT_SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

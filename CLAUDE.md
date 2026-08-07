@@ -1,18 +1,19 @@
-# Aligned — CLAUDE.md
+# NuAIg Assist — CLAUDE.md
 
-This file gives Claude Code full context to continue building Aligned.
+This file gives Claude Code full context to continue building NuAIg Assist
+(formerly "Aligned" — renamed in place, same product/codebase).
 Read this entirely before making any changes.
 
 ---
 
 ## What this product is
 
-Aligned is an internal ticketing platform built by **NuAIg** for running client support
+NuAIg Assist is an internal ticketing platform built by **NuAIg** for running client support
 and requests. Clients log into a portal, raise tickets, and see them through to
 resolution with their assigned project's team — all in one auditable thread instead of
 scattered across email.
 
-**The product is Ticketing, full stop.** Aligned previously also covered Milestones,
+**The product is Ticketing, full stop.** NuAIg Assist previously also covered Milestones,
 Decisions, a standalone project-level Documents panel, and an email-link approval/
 sign-off flow. All of that has been removed — not paused, not redirected, actually
 deleted from the codebase and torn down from the database (migration `040`). If you're
@@ -28,21 +29,25 @@ types were all deliberately removed together.
 
 | Surface | Who | How accessed |
 |---|---|---|
-| `/dashboard/*` | NuAIg team | Supabase Auth (email + password) |
-| `/portal/*` | Client org | **Session login** — one shared login id + password per client company (`clients.login_id`/`password_hash`, verified in `/portal/login`, session is a `jose`-signed JWT cookie — see `lib/auth/client-session*.ts`) |
+| `/dashboard/*` | NuAIg team | Supabase Auth (email + password), login page at `/nuaig-login` |
+| `/portal/*` | Client org | **Session login** — a client can have several independent named logins (`client_logins` table, migration 045), each its own login id + password, all seeing the same client-scoped data. The login page itself lives at the app root (`/`, `app/page.tsx` + `app/ClientLoginForm.tsx`), not under `/portal`. Session is a `jose`-signed JWT cookie carrying `{ clientId, clientLoginId }` — see `lib/auth/client-session*.ts` |
 
-The client portal is reached via that shared login, not a per-project token — there is
-no `portal_token` column. Login determines identity. There's no portal tab navigation:
-`/portal` is the sole hub, showing ticket scorecards + a "Your projects" list; clicking
-a project goes to `/portal/projects/[projectId]`, which shows that project's tickets.
-The one persistent "New ticket" button lives in the portal header
+The client portal is reached via one of those named logins, not a per-project token —
+there is no `portal_token` column. Login determines identity — see "Dual authorship"
+below for how that replaced the old manual "posting as" picker. There's no portal tab
+navigation: `/portal` is the sole hub, showing ticket scorecards + a "Your projects"
+list; clicking a project goes to `/portal/projects/[projectId]`, which shows that
+project's tickets. The one persistent "New ticket" button lives in the portal header
 (`app/portal/(app)/layout.tsx`), not duplicated on individual pages. All of this is
-gated by the session cookie (`middleware.ts`), not a token.
+gated by the session cookie (`middleware.ts`), not a token. There is no
+`/portal/login` route at all — the login page is only ever `/`.
 
 Because the client session is a custom JWT (not a Supabase Auth session), Postgres RLS
 has no way to see it. Portal server actions/routes use `createServiceRoleClient()` —
-authorization is a manual check in the action itself (a verified session's `clientId`),
-not something RLS can enforce for that surface. See rules 3–4 below.
+authorization is a manual check in the action itself (a verified session's `clientId`,
+and — since migration 045 — a live `client_logins.is_active` check so a revoked login
+stops working mid-session, not just on next sign-in), not something RLS can enforce for
+that surface. See rules 3–4 below.
 
 ### Ticket attachments — attribution only
 
@@ -50,7 +55,7 @@ A ticket comment/attachment can carry a `shared_by` tag (`'team'` or `'client'`)
 `documents` row so the thread shows who attached what. `documents.ticket_id` is how a
 ticket attachment hangs off this table; `documents.project_id` is optional (a ticket may
 or may not have a project). There is no signing or approval workflow anywhere in the
-product — nothing in Aligned requires a formal sign-off anymore.
+product — nothing in NuAIg Assist requires a formal sign-off anymore.
 
 ### Ticketing — the heart of the app
 
@@ -61,14 +66,17 @@ triages and works them.
 Key departures from a plain kanban:
 
 - **Dual authorship.** A ticket/comment is raised by exactly one of a
-  `team_members` row OR a free-text `created_by_client_name` (the client login
-  is one shared credential per company, not per person, so there's no
-  individual client account to foreign-key to) — enforced by a DB `CHECK`
-  constraint (`tickets_single_author` / `ticket_comments_single_author`).
-  On the portal, the person's name is captured via a lightweight, non-auth
-  "posting as" picker sourced from `client_contacts` (see
-  `app/portal/(app)/tickets/ContactNamePicker.tsx`) — that's cosmetic
-  attribution, not a security boundary; the login id is the boundary.
+  `team_members` row OR a free-text `created_by_client_name` (there's no
+  individual client account to foreign-key to — a client login is a
+  credential in `client_logins`, not a user account) — enforced by a DB
+  `CHECK` constraint (`tickets_single_author` / `ticket_comments_single_author`).
+  As of migration 045, the client-side name is resolved server-side from
+  whichever `client_logins` row authenticated the session
+  (`requireActiveLoginName()` in `lib/tickets/portal-actions.ts`) — not typed
+  by hand. There is no "posting as" picker anymore (`ContactNamePicker.tsx`
+  and its `client_contacts`-backed name list were removed along with the
+  single-shared-login model); the login itself is both the identity and the
+  security boundary now.
 - **`ticket_type`** (`'client' | 'internal'`, migration 033) — internal tickets
   are never shown on the client's portal and can only ever carry internal
   comments (enforced by a DB trigger, not just UI). A client-raised ticket is
@@ -152,7 +160,7 @@ behavior change.
   team reply, resolved, and closed-without-ever-being-resolved (see below).
   There's also a lightweight `client_notifications`-backed bell in the
   portal header (`PortalNotificationBell.tsx`), polled rather than
-  Realtime-driven since the shared login isn't a Supabase Auth session.
+  Realtime-driven since a client login isn't a Supabase Auth session.
   Every ticket email is sent as one personalized send per recipient (never
   a shared multi-`to` send) to the ticket's effective contact list
   (`getTicketContactRecipients`, see Contact management below) plus a copy
@@ -197,12 +205,28 @@ Contacts exist at two levels:
 1. **Client level** (`project_id = null`) — default contacts inherited by all projects
 2. **Project level** (`project_id = <id>`) — additions for a specific project
 
-They serve two purposes: the portal's "posting as" name picker when a client
-raises a ticket or comments (cosmetic attribution, not auth), and the
-recipient list for ticket email (`lib/email/index.ts`). When resolving who
-should be emailed about a ticket, use the project's *effective* contact list
-(client defaults + project-specific additions for that ticket's project) —
-not just the client-level defaults.
+`client_contacts` now serves one purpose only: the recipient list for ticket
+email (`lib/email/index.ts`). It is no longer read for portal identity —
+that's `client_logins` now (see Access model and Dual authorship above).
+When resolving who should be emailed about a ticket, use the project's
+*effective* contact list (client defaults + project-specific additions for
+that ticket's project) — not just the client-level defaults.
+
+### Client logins vs. client contacts — don't conflate these
+
+Two separate tables with two separate jobs:
+- **`client_logins`** (migration 045) — who can sign into the portal. Each row
+  is a real credential (login id + password hash), admin-managed from the
+  client detail page's "Manager & portal access" panel
+  (`ClientAccessManager.tsx` / `lib/clients/access-actions.ts`). This is the
+  security boundary, and also now supplies the display name attached to
+  whatever that login authors.
+- **`client_contacts`** — who gets emailed about a ticket. Not a login, not
+  a security boundary, just an address book.
+
+A client contact does not automatically get a portal login, and a portal
+login's `contact_name` isn't synced from `client_contacts` — they're
+independently managed on the same client detail page.
 
 ---
 
@@ -232,7 +256,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=   ← never expose to client
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=
-RESEND_FROM_NAME=NuAIg Aligned
+RESEND_FROM_NAME=NuAIg Assist
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 NEXT_PUBLIC_COMPANY_NAME=NuAIg
 NEXTAUTH_SECRET=              ← signs the client portal session JWT (lib/auth/client-session-core.ts) — required, not decorative
@@ -244,17 +268,18 @@ NEXTAUTH_SECRET=              ← signs the client portal session JWT (lib/auth/
 
 The migrations folder is one clean, dependency-ordered sequence: `001` built the
 original schema (team/roles → clients/login → projects → tickets → notifications/
-settings → RLS → storage), and `020`–`041` are incremental changes on top of it
+settings → RLS → storage), and `020`–`045` are incremental changes on top of it
 (RBAC tightening, ticket types, project membership, ticket search, removing the
-Milestones/Decisions/Approvals schema the product no longer has as of `040`, and a
-ticket email audit/idempotency log as of `041`).
+Milestones/Decisions/Approvals schema the product no longer has as of `040`, a
+ticket email audit/idempotency log as of `041`, and the single shared client login
+replaced by multiple independent named `client_logins` as of `045`).
 Chronos's conventions are followed throughout: `CREATE TABLE IF NOT EXISTS`, `DROP
 POLICY IF EXISTS` before every `CREATE POLICY`, enum creation wrapped in `DO $$ ...
 EXCEPTION WHEN duplicate_object`, one `SECURITY DEFINER STABLE` helper per reusable RLS
 predicate. This assumes a **fresh Supabase project** — there is no migration path from
 the old schema, and none is needed (no prior production data to preserve).
 
-Run `supabase/migrations/001` through `041` **in order** in the Supabase SQL
+Run `supabase/migrations/001` through `045` **in order** in the Supabase SQL
 editor (or via the CLI). The storage bucket (`project-documents`) and its access
 policies are created **live by migration `019`** — no manual dashboard step needed.
 (Migration `019` also created a `signed-records` bucket for a PDF export that was
@@ -267,10 +292,12 @@ Supabase Auth signup isn't scriptable from a migration):
    `002`) auto-inserts a `team_members` row for it with `role = 'member'`
 3. Promote them to admin: `UPDATE team_members SET role = 'admin' WHERE id = 'uuid-here';`
 
-To issue a client's portal login, use the "Manager & portal access" panel on
+To issue a client's portal login(s), use the "Manager & portal access" panel on
 that client's dashboard page (`app/dashboard/clients/[clientId]/ClientAccessManager.tsx`)
-— it generates a login id + one-time password server-side
-(`lib/clients/access-actions.ts`), never in the browser.
+— each named login gets its own login id + one-time password, generated
+server-side (`lib/clients/access-actions.ts`), never in the browser. A client
+can have any number of these (e.g. one per contact); each is independent and
+all see the same client-scoped portal data.
 
 ---
 
@@ -278,6 +305,12 @@ that client's dashboard page (`app/dashboard/clients/[clientId]/ClientAccessMana
 
 ```
 app/
+  page.tsx                ← Client login — the canonical URL, not under /portal
+  ClientLoginForm.tsx      ← Client login form + marketing panel ('use client')
+  login-actions.ts        ← Server Actions: loginClient / logoutClient (client_logins-backed)
+  nuaig-login/             ← Team login (Supabase Auth) + marketing panel
+    page.tsx
+
   dashboard/              ← NuAIg team views (Supabase Auth required)
     page.tsx              ← Overview / home — stat tiles, "needs your attention",
                              assigned-to-me, ticket-status meter, activity stream
@@ -289,26 +322,25 @@ app/
         page.tsx / TicketDetail.tsx / TicketComments.tsx / TicketPropertiesPanel.tsx / TicketAttachments.tsx
     clients/                 ← Client list + client detail
       [clientId]/
-        ContactsManager.tsx       ← Client contacts
-        ClientAccessManager.tsx  ← Manager picker + portal login issuance
+        ContactsManager.tsx       ← Client contacts (email recipients, not portal logins)
+        ClientAccessManager.tsx  ← Manager picker + multi-login management (client_logins)
     projects/
       [projectId]/
         page.tsx                   ← Project hub: ticket stats + team + embedded board
         ProjectMembersManager.tsx  ← Project team add/remove
 
   portal/
-    login/                ← Client login (session-based)
-      page.tsx / LoginForm.tsx / actions.ts
     (app)/                ← Route group requiring a valid client session
-      layout.tsx          ← Topbar (Logo→/portal, New ticket, bell, logout)
+      layout.tsx          ← Topbar (Logo→/portal, New ticket, bell, logout, "Signed in as {loginName}")
       template.tsx        ← Page-transition wrapper
       page.tsx            ← Client hub: ticket scorecards + projects list
-      tickets/            ← List / new / detail + ContactNamePicker
+      tickets/            ← List / new / detail — author name comes from the session, no name picker
       projects/[projectId]/  ← That project's ticket list
 
   (no api/ directory — every mutation is a Server Action; there are no route handlers today)
 
 components/
+  AuthMarketingPanel.tsx  ← Shared split-screen marketing panel (used by / and /nuaig-login)
   dashboard/
     Header.tsx            ← Top nav (Overview/Tickets/Projects/Clients[/Team]) + TicketSearch + NotificationBell
     TicketSearch.tsx      ← Universal ticket search dropdown (header, not the Tickets page)
@@ -320,25 +352,25 @@ hooks/
 lib/
   supabase/               ← Browser, server, and service role clients
   auth/
-    client-session-core.ts   ← jose-only session sign/verify (Edge-safe, used by middleware.ts)
+    client-session-core.ts   ← jose-only session sign/verify (Edge-safe, used by middleware.ts) — payload is { clientId, clientLoginId }
     client-session.ts        ← + bcryptjs password hashing (Node-only, Server Actions only)
     client-session-cookies.ts ← next/headers cookie wrapper
-  portal/session-guard.ts  ← requireClientSession / getSessionClient / getSessionProject
+  portal/session-guard.ts  ← requireClientSession / getSessionClient (merges clients + client_logins) / getSessionProject
   tickets/
     team-actions.ts        ← Server Actions: dashboard-side ticket CRUD (RLS-governed), searchTickets
-    portal-actions.ts      ← Server Actions: client-side ticket create/comment (service role + manual client_id checks)
+    portal-actions.ts      ← Server Actions: client-side ticket create/comment (service role + manual client_id + client_logins.is_active checks)
     contacts.ts             ← getTicketContactRecipients / getManagerContact / withManagerCopy — shared ticket-email recipient resolution
   projects/
     actions.ts             ← createProject (auto-adds creator as first project_member) / deleteProject
     members-actions.ts     ← addProjectMember / removeProjectMember (RLS: can_manage_project_members)
     scope.ts                ← getMyProjectScope / scopeProjectsQuery — shared "my projects" display filter (Overview + Projects list)
-  clients/access-actions.ts  ← Manager assignment + login credential issue/revoke
+  clients/access-actions.ts  ← Manager assignment + per-login credential create/reset/revoke (client_logins)
   notifications/create.ts   ← createTicketNotifications / getActorName / createClientNotification
   email/index.ts          ← Resend helpers (ticket confirmation/reply/resolved) — lazy client, no-ops if RESEND_API_KEY unset
   utils/index.ts           ← Formatting, helpers, ticket status/priority config
 
 types/index.ts            ← All TypeScript types (mirrors DB schema)
-middleware.ts             ← Auth guard for /dashboard (Supabase session) AND /portal (client session JWT)
+middleware.ts             ← Auth guard for /dashboard (Supabase session, login at /nuaig-login) AND /portal (client session JWT, login at /)
 ```
 
 ---
@@ -352,7 +384,7 @@ middleware.ts             ← Auth guard for /dashboard (Supabase session) AND /
 - [x] Team auth middleware (Supabase Auth) + client portal session middleware (JWT)
 - [x] Mobile block
 - [x] Team login page
-- [x] Client portal login (session-based, `/portal/login`)
+- [x] Client portal login (session-based, canonical URL is `/`) — multiple independent named logins per client (`client_logins`, migration 045)
 - [x] Dashboard layout + sidebar (incl. Tickets nav + notification bell)
 - [x] Dashboard overview page
 - [x] Clients list + client detail (contacts, Manager picker, portal login issuance)
@@ -474,7 +506,7 @@ canonical source for these — use them rather than re-declaring the mapping.)
    handle both — don't assume every row has a team-member author.
 
 10. **New migrations continue the `NNN_description.sql` sequence** (currently
-    through `041`) — one concern per file, idempotent (`IF NOT EXISTS`,
+    through `045`) — one concern per file, idempotent (`IF NOT EXISTS`,
     `DROP POLICY IF EXISTS` before `CREATE POLICY`), and any RLS predicate
     used by more than one table extracted into its own `SECURITY DEFINER
     STABLE` SQL function first. Don't go back and edit an already-numbered

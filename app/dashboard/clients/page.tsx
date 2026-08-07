@@ -11,18 +11,20 @@ export default async function ClientsPage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: clients }, { data: me }] = await Promise.all([
+  const [{ data: clients }, { data: me }, { data: activeLogins }] = await Promise.all([
     supabase
       .from('clients')
-      .select('id, name, slug, created_at, login_id, manager_id, projects(id), manager:team_members(name)')
+      .select('id, name, slug, created_at, manager_id, projects(id), manager:team_members(name)')
       .order('name'),
     user ? supabase.from('team_members').select('role').eq('id', user.id).maybeSingle() : Promise.resolve({ data: null }),
+    supabase.from('client_logins').select('client_id').eq('is_active', true),
   ])
 
   const canCreate = me?.role === 'admin'
   const total = clients?.length ?? 0
   const withManager = clients?.filter(c => c.manager_id).length ?? 0
-  const withLogin = clients?.filter(c => c.login_id).length ?? 0
+  const clientIdsWithLogin = new Set((activeLogins ?? []).map(l => l.client_id))
+  const withLogin = clientIdsWithLogin.size
 
   return (
     <div>
@@ -103,7 +105,7 @@ export default async function ClientsPage() {
                   {manager?.name && ` · Managed by ${manager.name}`}
                 </div>
               </div>
-              {client.login_id && (
+              {clientIdsWithLogin.has(client.id) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--success-text)', flexShrink: 0 }}>
                   <KeyRound size={11} /> Portal active
                 </div>

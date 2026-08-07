@@ -9,7 +9,7 @@ export default async function NewProjectPage({
 }) {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect('/nuaig-login')
 
   const { data: me } = await supabase.from('team_members').select('role').eq('id', user.id).maybeSingle()
   // Server-side gate — the "New project" button is also hidden for

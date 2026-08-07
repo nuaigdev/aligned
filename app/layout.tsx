@@ -12,23 +12,23 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL(APP_URL),
   title: {
-    default: 'Aligned — NuAIg',
-    template: '%s · Aligned',
+    default: 'NuAIg Assist',
+    template: '%s · NuAIg Assist',
   },
   description: DESCRIPTION,
   robots: 'noindex, nofollow', // internal tool
   icons: { icon: '/logo.png' },
   openGraph: {
-    title: 'Aligned — NuAIg',
+    title: 'NuAIg Assist',
     description: DESCRIPTION,
     url: '/',
-    siteName: 'Aligned',
+    siteName: 'NuAIg Assist',
     locale: 'en_US',
     type: 'website',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Aligned — NuAIg',
+    title: 'NuAIg Assist',
     description: DESCRIPTION,
   },
 }
@@ -59,11 +59,11 @@ export default function RootLayout({
         {/* Mobile block — shown on screens below md (768px) */}
         <div className="mobile-block">
           <div className="mobile-block__inner">
-            <Image src="/logo.png" alt="Aligned" width={40} height={40} style={{ marginBottom: '16px' }} />
-            <div className="mobile-block__logo brand-wordmark">Aligned</div>
+            <Image src="/logo.png" alt="NuAIg Assist" width={40} height={40} style={{ marginBottom: '16px' }} />
+            <div className="mobile-block__logo brand-wordmark">NuAIg Assist</div>
             <h1 className="mobile-block__title">Desktop only</h1>
             <p className="mobile-block__body">
-              Aligned is designed for desktop use. Please open this page on a
+              NuAIg Assist is designed for desktop use. Please open this page on a
               laptop or desktop computer for the full experience.
             </p>
             <p className="mobile-block__sub">

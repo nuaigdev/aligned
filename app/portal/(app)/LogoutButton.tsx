@@ -2,14 +2,14 @@
 
 import { useRouter } from 'next/navigation'
 import { LogOut } from 'lucide-react'
-import { logoutClient } from '../login/actions'
+import { logoutClient } from '@/app/login-actions'
 
 export default function PortalLogoutButton() {
   const router = useRouter()
 
   async function handleLogout() {
     await logoutClient()
-    router.push('/portal/login')
+    router.push('/')
     router.refresh()
   }
 

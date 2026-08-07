@@ -9,10 +9,10 @@ import { Logo } from '@/components/Logo'
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const client = await getSessionClient()
 
-  // A client with a temporary/reset password must set a real one before
-  // touching anything else — enforced here so it applies to every page in
-  // this group, not just the ones that remember to check.
-  if (client.must_change_password) {
+  // A client login with a temporary/reset password must set a real one
+  // before touching anything else — enforced here so it applies to every
+  // page in this group, not just the ones that remember to check.
+  if (client.mustChangePassword) {
     redirect('/portal/change-password')
   }
 
@@ -31,7 +31,7 @@ export default async function PortalLayout({ children }: { children: React.React
           <div style={{ width: '1px', height: '18px', background: 'var(--border-default)' }} />
           <div>
             <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)' }}>{client.name}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Client portal</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)' }}>Signed in as {client.loginName}</div>
           </div>
         </Link>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '14px' }}>

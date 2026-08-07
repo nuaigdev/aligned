@@ -77,9 +77,10 @@ export function toSlug(value: string): string {
 }
 
 // ── Portal login URL ───────────────────────────────────────────
+// The client login now lives at the root of the app, not under /portal.
 export function getPortalLoginUrl(): string {
   const base = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
-  return `${base}/portal/login`
+  return base
 }
 
 // ── Regex escaping ────────────────────────────────────────────

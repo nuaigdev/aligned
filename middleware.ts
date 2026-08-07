@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
 
   // Protect all /dashboard routes — redirect to login if not authenticated
   if (pathname.startsWith('/dashboard') && !session) {
-    return NextResponse.redirect(new URL('/login', request.url))
+    return NextResponse.redirect(new URL('/nuaig-login', request.url))
   }
 
   // A team member with a temp/generated password must set a real one
@@ -59,30 +59,21 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Redirect authenticated users away from login page
-  if (pathname === '/login' && session) {
+  // Redirect authenticated users away from the team login page
+  if (pathname === '/nuaig-login' && session) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Portal routes require a valid client session cookie (login id +
-  // password, one shared credential per client company) — replaces
-  // the old per-project portal_token URL entirely.
-  if (pathname.startsWith('/portal') && pathname !== '/portal/login') {
+  // Portal routes require a valid client session cookie (a named login
+  // id + password — see client_logins, migration 045) — replaces the
+  // old per-project portal_token URL entirely. The login page itself
+  // now lives at '/', not under /portal.
+  if (pathname.startsWith('/portal')) {
     const clientSession = await verifyClientSessionToken(
       request.cookies.get(CLIENT_SESSION_COOKIE)?.value
     )
     if (!clientSession) {
-      return NextResponse.redirect(new URL('/portal/login', request.url))
-    }
-  }
-
-  // Redirect an already-logged-in client away from the login page
-  if (pathname === '/portal/login') {
-    const clientSession = await verifyClientSessionToken(
-      request.cookies.get(CLIENT_SESSION_COOKIE)?.value
-    )
-    if (clientSession) {
-      return NextResponse.redirect(new URL('/portal', request.url))
+      return NextResponse.redirect(new URL('/', request.url))
     }
   }
 

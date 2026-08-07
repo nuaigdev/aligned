@@ -41,13 +41,13 @@ export function OgImage() {
       <div
         style={{
           display: 'flex',
-          fontSize: 88,
+          fontSize: 76,
           color: '#ffffff',
           fontWeight: 500,
           letterSpacing: '-0.03em',
         }}
       >
-        Aligned
+        NuAIg Assist
       </div>
       <div
         style={{

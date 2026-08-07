@@ -11,13 +11,15 @@
 
 import { SignJWT, jwtVerify } from 'jose'
 
-export const CLIENT_SESSION_COOKIE = 'aligned_client_session'
+export const CLIENT_SESSION_COOKIE = 'nuaig_assist_client_session'
 const SESSION_TTL = '30d'
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30
 export const CLIENT_SESSION_MAX_AGE = SESSION_MAX_AGE_SECONDS
 
 export interface ClientSessionPayload {
   clientId: string
+  /** client_logins.id — which named login authenticated this session. */
+  clientLoginId: string
 }
 
 function getSecretKey() {
@@ -28,8 +30,8 @@ function getSecretKey() {
   return new TextEncoder().encode(secret)
 }
 
-export async function signClientSession(clientId: string): Promise<string> {
-  return new SignJWT({ clientId })
+export async function signClientSession(clientId: string, clientLoginId: string): Promise<string> {
+  return new SignJWT({ clientId, clientLoginId })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(SESSION_TTL)
@@ -42,8 +44,8 @@ export async function verifyClientSessionToken(
   if (!token) return null
   try {
     const { payload } = await jwtVerify(token, getSecretKey())
-    if (typeof payload.clientId !== 'string') return null
-    return { clientId: payload.clientId }
+    if (typeof payload.clientId !== 'string' || typeof payload.clientLoginId !== 'string') return null
+    return { clientId: payload.clientId, clientLoginId: payload.clientLoginId }
   } catch {
     return null
   }

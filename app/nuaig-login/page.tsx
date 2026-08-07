@@ -7,9 +7,9 @@ import { motion } from 'framer-motion'
 import {
   Ticket, Search, Building2, BellRing, ShieldCheck, Users,
 } from 'lucide-react'
-import { Logo } from '@/components/Logo'
+import { AuthMarketingPanel, type AuthFeature } from '@/components/AuthMarketingPanel'
 
-const FEATURES = [
+const FEATURES: AuthFeature[] = [
   {
     icon: Ticket,
     title: 'Tickets that route themselves',
@@ -18,7 +18,7 @@ const FEATURES = [
   {
     icon: Building2,
     title: 'A portal your clients respect',
-    body: 'One login, a live view of every ticket across their projects — a professional front door instead of an email thread.',
+    body: 'A live view of every ticket across their projects — a professional front door instead of an email thread.',
   },
   {
     icon: BellRing,
@@ -42,7 +42,7 @@ const FEATURES = [
   },
 ]
 
-export default function LoginPage() {
+export default function TeamLoginPage() {
   const router = useRouter()
   const supabase = createBrowserClient()
   const [email, setEmail] = useState('')
@@ -69,69 +69,21 @@ export default function LoginPage() {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', background: 'var(--bg-primary)' }}>
-      {/* Marketing panel */}
-      <div style={{
-        flex: '1 1 55%',
-        background: 'linear-gradient(180deg, var(--brand-50) 0%, var(--bg-primary) 100%)',
-        borderRight: '0.5px solid var(--border-default)',
-        padding: '56px 64px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        maxWidth: '680px',
-      }}>
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
-          <Logo size={40} wordmarkSize={22} />
+      <AuthMarketingPanel
+        heading={<>Every client ticket — tracked,<br />triaged, and closed out.</>}
+        description="NuAIg Assist is NuAIg's platform for running client engagements: a ticketing system your clients actually want to use, and a portal that makes NuAIg look as sharp as the work itself."
+        features={FEATURES}
+      />
 
-          <h1 style={{
-            fontSize: '32px',
-            fontWeight: 500,
-            color: 'var(--text-primary)',
-            lineHeight: 1.25,
-            letterSpacing: '-0.02em',
-            margin: '32px 0 12px',
-          }}>
-            Every client ticket — tracked,<br />triaged, and closed out.
-          </h1>
-          <p style={{ fontSize: '15px', color: 'var(--text-secondary)', lineHeight: 1.6, maxWidth: '480px', marginBottom: '40px' }}>
-            Aligned is NuAIg's platform for running client engagements: a
-            ticketing system your clients actually want to use, and a portal
-            that makes NuAIg look as sharp as the work itself.
-          </p>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '22px' }}>
-            {FEATURES.map((f, i) => (
-              <motion.div
-                key={f.title}
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.35, delay: 0.08 + i * 0.05 }}
-                style={{ display: 'flex', gap: '14px', alignItems: 'flex-start' }}
-              >
-                <div style={{
-                  width: '34px', height: '34px', borderRadius: '9px', flexShrink: 0,
-                  background: 'var(--brand-100)', color: 'var(--brand-800)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <f.icon size={17} />
-                </div>
-                <div>
-                  <div style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '2px' }}>
-                    {f.title}
-                  </div>
-                  <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.55, maxWidth: '440px' }}>
-                    {f.body}
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Login panel */}
+      {/* Login panel — sticky so it stays put in the viewport while the
+          (potentially taller) marketing panel is what actually scrolls;
+          the page still has exactly one scrollbar (the body's). */}
       <div style={{
         flex: '1 1 45%',
+        position: 'sticky',
+        top: 0,
+        alignSelf: 'flex-start',
+        height: '100vh',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -148,6 +100,7 @@ export default function LoginPage() {
             border: '0.5px solid var(--border-default)',
             borderRadius: '16px',
             padding: '36px 32px',
+            transform: 'translateY(-6%)',
           }}
         >
           <div style={{ marginBottom: '28px' }}>

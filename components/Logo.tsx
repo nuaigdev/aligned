@@ -13,7 +13,7 @@ export function Logo({
     <div style={{ display: 'flex', alignItems: 'center', gap: '9px' }}>
       <Image
         src="/logo.png"
-        alt="Aligned"
+        alt="NuAIg Assist"
         width={size}
         height={size}
         priority
@@ -28,7 +28,7 @@ export function Logo({
             letterSpacing: '-0.03em',
           }}
         >
-          Aligned
+          NuAIg Assist
         </span>
       )}
     </div>

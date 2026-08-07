@@ -50,7 +50,7 @@ export default function ChangePasswordForm({ forced }: { forced: boolean }) {
     // force a logout — see the comment there) — land on login, not
     // /dashboard, or middleware just bounces the stale session back here.
     toast.success('Password updated — sign in with your new password')
-    router.push('/login')
+    router.push('/nuaig-login')
     router.refresh()
   }
 

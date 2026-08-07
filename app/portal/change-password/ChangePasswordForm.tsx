@@ -49,7 +49,7 @@ export default function ChangePasswordForm({ forced }: { forced: boolean }) {
     // changeClientPassword() ends the session server-side (password
     // changes force a logout) — land on the login page, not /portal.
     toast.success('Password updated — sign in with your new password')
-    router.push('/portal/login')
+    router.push('/')
     router.refresh()
   }
 

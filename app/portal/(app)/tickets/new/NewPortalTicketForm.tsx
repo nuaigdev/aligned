@@ -7,7 +7,6 @@ import toast from 'react-hot-toast'
 import { Paperclip, Upload, X } from 'lucide-react'
 import { createPortalTicket, uploadDraftPortalAttachment, removeDraftPortalAttachment } from '@/lib/tickets/portal-actions'
 import { formatFileSize } from '@/lib/utils'
-import ContactNamePicker, { useRememberedContactName } from '../ContactNamePicker'
 import type { TicketPriority } from '@/types'
 
 interface DraftAttachment {
@@ -38,16 +37,13 @@ const PRIORITY_LABELS: Record<TicketPriority, string> = {
 }
 
 export default function NewPortalTicketForm({
-  contacts,
   projects,
   canSetPriority,
 }: {
-  contacts: { id: string; name: string }[]
   projects: { id: string; name: string }[]
   canSetPriority: boolean
 }) {
   const router = useRouter()
-  const [contactName, setContactName] = useRememberedContactName()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [category, setCategory] = useState('general')
@@ -89,7 +85,6 @@ export default function NewPortalTicketForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return toast.error('Give the ticket a short title')
-    if (!contactName.trim()) return toast.error('Let us know who this is from')
 
     setSaving(true)
     const result = await createPortalTicket({
@@ -98,7 +93,6 @@ export default function NewPortalTicketForm({
       category,
       priority: canSetPriority ? priority : undefined,
       project_id: projectId || undefined,
-      contact_name: contactName,
       attachments: attachments.length > 0 ? attachments : undefined,
     })
     setSaving(false)
@@ -119,8 +113,6 @@ export default function NewPortalTicketForm({
       onSubmit={handleSubmit}
       style={{ display: 'flex', flexDirection: 'column', gap: '14px', maxWidth: '520px' }}
     >
-      <ContactNamePicker contacts={contacts} value={contactName} onChange={setContactName} />
-
       <div>
         <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>What's this about? *</label>
         <input autoFocus value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. 'Can't log in to the dashboard'" style={inputStyle} />

@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 export default async function TicketsPage() {
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  if (!user) redirect('/nuaig-login')
 
   const { data: me } = await supabase.from('team_members').select('role').eq('id', user.id).maybeSingle()
   const isAdmin = me?.role === 'admin'
