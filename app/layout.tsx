@@ -5,11 +5,32 @@ import Image from 'next/image'
 import { Toaster } from 'react-hot-toast'
 import './globals.css'
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://assist.nuaig.ai'
+const DESCRIPTION =
+  "NuAIg's client ticketing platform — raise, track, and resolve support requests in one auditable thread."
+
 export const metadata: Metadata = {
-  title: 'Aligned — NuAIg',
-  description: 'Client ticketing platform',
+  metadataBase: new URL(APP_URL),
+  title: {
+    default: 'Aligned — NuAIg',
+    template: '%s · Aligned',
+  },
+  description: DESCRIPTION,
   robots: 'noindex, nofollow', // internal tool
   icons: { icon: '/logo.png' },
+  openGraph: {
+    title: 'Aligned — NuAIg',
+    description: DESCRIPTION,
+    url: '/',
+    siteName: 'Aligned',
+    locale: 'en_US',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Aligned — NuAIg',
+    description: DESCRIPTION,
+  },
 }
 
 export default function RootLayout({
