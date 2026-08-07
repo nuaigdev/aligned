@@ -6,15 +6,9 @@ import {
   AlertTriangle, UserX, Ticket, FolderKanban, PartyPopper, CheckCircle2, User, CalendarClock, ArrowRight,
 } from 'lucide-react'
 import { StatCard } from '@/components/dashboard/StatCard'
+import GreetingHeader from './GreetingHeader'
 
 export const dynamic = 'force-dynamic'
-
-function greeting(): string {
-  const hour = new Date().getHours()
-  if (hour < 12) return 'Good morning'
-  if (hour < 18) return 'Good afternoon'
-  return 'Good evening'
-}
 
 const PRIORITY_RANK: Record<string, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
 const STATUS_ORDER = ['open', 'in_progress', 'resolved', 'closed'] as const
@@ -138,14 +132,7 @@ export default async function DashboardPage() {
   return (
     <div>
       <div className="animate-in" style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '16px' }}>
-        <div>
-          <h1 style={{ fontSize: '22px', fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
-            {greeting()}{me?.name ? `, ${me.name.split(' ')[0]}` : ''}
-          </h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-tertiary)', marginTop: '4px' }}>
-            {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-          </p>
-        </div>
+        <GreetingHeader name={me?.name ? me.name.split(' ')[0] : undefined} />
         <Link
           href="/dashboard/tickets"
           className="hover-lift"
