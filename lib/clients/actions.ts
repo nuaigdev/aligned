@@ -32,6 +32,33 @@ export async function createClient(name: string): Promise<{ id: string } | { err
 }
 
 /**
+ * Renames a client. Deliberately does NOT touch `slug` — it's baked into
+ * every existing ticket's ref code (e.g. "MATH-017" via ticketClientCode),
+ * so regenerating it on every rename would silently change historical
+ * ticket references clients and team already have bookmarked/quoted.
+ * There are no other editable fields here: clients carry no start/end
+ * date (only projects do) and manager/portal-login assignment already
+ * has its own surface, ClientAccessManager.
+ */
+export async function updateClient(clientId: string, name: string): Promise<{ ok: true } | { error: string }> {
+  const check = await requireTeamRole(['admin', 'manager'])
+  if ('error' in check) return check
+  if (!name.trim()) return { error: 'Give the client a name.' }
+
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('clients')
+    .update({ name: name.trim() })
+    .eq('id', clientId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/clients')
+  revalidatePath(`/dashboard/clients/${clientId}`)
+  return { ok: true }
+}
+
+/**
  * Deletes the client and, via ON DELETE CASCADE, every project, ticket,
  * contact, and document that belongs to it. There is no undo — the
  * confirmation burden lives in the UI (DeleteConfirmButton requires typing

@@ -4,6 +4,7 @@ import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
 import ContactsManager from './ContactsManager'
 import ClientAccessManager from './ClientAccessManager'
+import EditClientModal from './EditClientModal'
 import DeleteConfirmButton from '@/components/dashboard/DeleteConfirmButton'
 import { deleteClient } from '@/lib/clients/actions'
 import type { ClientContact } from '@/types'
@@ -67,6 +68,10 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
   const projects = (client.projects as any[]) ?? []
   const canCreateProject = me?.role === 'admin' || me?.role === 'manager'
   const isAdmin = me?.role === 'admin'
+  // Manager & portal access panel (manager assignment + login credentials)
+  // is open to managers too, per product decision — see migration 048.
+  // Contacts and client deletion stay admin-only (isAdmin), unchanged.
+  const canManageAccess = canCreateProject
 
   return (
     <div>
@@ -83,22 +88,25 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
             </p>
           </div>
           {canCreateProject && (
-            <Link
-              href={`/dashboard/projects/new?client=${client.id}`}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '7px 14px',
-                background: '#EA580C',
-                color: '#fff',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 500,
-                textDecoration: 'none',
-              }}
-            >
-              + New project
-            </Link>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <EditClientModal clientId={client.id} currentName={client.name} />
+              <Link
+                href={`/dashboard/projects/new?client=${client.id}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  padding: '7px 14px',
+                  background: '#EA580C',
+                  color: '#fff',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  textDecoration: 'none',
+                }}
+              >
+                + New project
+              </Link>
+            </div>
           )}
         </div>
       </div>
@@ -171,7 +179,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
         <div style={{ fontSize: '11px', fontWeight: 500, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
           Access
         </div>
-        {isAdmin ? (
+        {canManageAccess ? (
           <ClientAccessManager
             clientId={params.clientId}
             managers={(managers ?? []) as any}
@@ -184,7 +192,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
               Manager: {(managers ?? []).find((m: any) => m.id === client.manager_id)?.name ?? 'None assigned'}
             </div>
             <div>Portal logins: {(logins ?? []).length > 0 ? `${(logins ?? []).length} active` : 'Not set up'}</div>
-            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '8px' }}>Only admins can change manager assignment or portal credentials.</div>
+            <div style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginTop: '8px' }}>Only admins and managers can change manager assignment or portal credentials.</div>
           </div>
         )}
       </div>

@@ -10,6 +10,7 @@ import TicketsBoard from '@/app/dashboard/tickets/TicketsBoard'
 import type { BoardTicket } from '@/app/dashboard/tickets/TicketCard'
 import type { SelectableProject } from '@/app/dashboard/tickets/TicketsBoard'
 import ProjectMembersManager from './ProjectMembersManager'
+import EditProjectModal from './EditProjectModal'
 
 export const dynamic = 'force-dynamic'
 
@@ -94,16 +95,19 @@ export default async function ProjectPage({ params }: { params: { projectId: str
               {project.planned_end_at && ` · Due ${formatDate(project.planned_end_at)}`}
             </p>
           </div>
-          <span style={{
-            fontSize: '12px',
-            padding: '4px 12px',
-            borderRadius: '10px',
-            background: 'var(--brand-50)',
-            color: 'var(--brand-800)',
-            fontWeight: 500,
-          }}>
-            {STATUS_LABEL[project.status] || project.status}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            <span style={{
+              fontSize: '12px',
+              padding: '4px 12px',
+              borderRadius: '10px',
+              background: 'var(--brand-50)',
+              color: 'var(--brand-800)',
+              fontWeight: 500,
+            }}>
+              {STATUS_LABEL[project.status] || project.status}
+            </span>
+            {canManageProject && <EditProjectModal project={project} />}
+          </div>
         </div>
       </div>
 

@@ -42,18 +42,23 @@ export async function createProject(input: {
   // assigned Manager is added alongside them — they already have standing
   // override access to every ticket on this client (is_client_manager_or_admin),
   // so being left off the roster was just a gap, not a boundary; a Set
-  // dedupes the common case where the creator *is* that Manager.
+  // dedupes the common case where the creator *is* that Manager. This insert
+  // relies on can_manage_project_members' bootstrap branch (migration 047) —
+  // without it, a manager creator who isn't also the client's assigned
+  // Manager would be silently blocked by RLS, since they aren't a project
+  // member yet at the moment this runs.
   const { data: client } = await supabase.from('clients').select('manager_id').eq('id', input.clientId).maybeSingle()
   const memberIds = new Set([check.id])
   if (client?.manager_id) memberIds.add(client.manager_id)
 
-  await supabase.from('project_members').insert(
+  const { error: memberError } = await supabase.from('project_members').insert(
     Array.from(memberIds).map(team_member_id => ({
       project_id: data.id,
       team_member_id,
       added_by: check.id,
     }))
   )
+  if (memberError) console.error('createProject: failed to seed project_members', memberError)
 
   if (client?.manager_id && client.manager_id !== check.id) {
     await createProjectAssignmentNotification(supabase, [client.manager_id], check.id, data.id, input.name.trim())
@@ -61,6 +66,48 @@ export async function createProject(input: {
 
   revalidatePath('/dashboard/projects')
   return { id: data.id }
+}
+
+/**
+ * Edits a project's own fields (name/description/status/dates) — not its
+ * client or team roster, which have their own dedicated surfaces
+ * (client_id is effectively immutable here; ProjectMembersManager owns
+ * project_members). Same admin/manager gate as createProject — this app's
+ * "any team member, full access" RLS model for projects means the actual
+ * boundary is this check, not a project-membership predicate like tickets
+ * use (see CLAUDE.md's ticketing section on why that's deliberate).
+ */
+export async function updateProject(
+  projectId: string,
+  input: {
+    name: string
+    description?: string
+    status: string
+    startedAt?: string
+    plannedEndAt?: string
+  }
+): Promise<{ ok: true } | { error: string }> {
+  const check = await requireTeamRole(['admin', 'manager'])
+  if ('error' in check) return check
+  if (!input.name.trim()) return { error: 'Give the project a name.' }
+
+  const supabase = createSupabaseServerClient()
+  const { error } = await supabase
+    .from('projects')
+    .update({
+      name: input.name.trim(),
+      description: input.description?.trim() || null,
+      status: input.status,
+      started_at: input.startedAt || null,
+      planned_end_at: input.plannedEndAt || null,
+    })
+    .eq('id', projectId)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard/projects')
+  revalidatePath(`/dashboard/projects/${projectId}`)
+  return { ok: true }
 }
 
 /**

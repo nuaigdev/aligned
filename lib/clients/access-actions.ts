@@ -9,7 +9,7 @@ export async function setClientManager(
   clientId: string,
   managerId: string | null
 ): Promise<{ ok: true } | { error: string }> {
-  const check = await requireTeamRole(['admin'])
+  const check = await requireTeamRole(['admin', 'manager'])
   if ('error' in check) return check
 
   const supabase = createSupabaseServerClient()
@@ -23,17 +23,17 @@ export async function setClientManager(
 /**
  * Creates a new named login for this client. Returns the plaintext
  * password exactly once — only the hash is ever persisted. The admin
- * relays this to the named contact out of band (phone/email); it
- * cannot be retrieved again after this call returns. A client can
- * have any number of these — each is independent (own id, own
- * password) and all see the exact same client-scoped portal data.
+ * or manager relays this to the named contact out of band (phone/
+ * email); it cannot be retrieved again after this call returns. A
+ * client can have any number of these — each is independent (own id,
+ * own password) and all see the exact same client-scoped portal data.
  */
 export async function createClientLogin(
   clientId: string,
   loginId: string,
   contactName: string
 ): Promise<{ password: string } | { error: string }> {
-  const check = await requireTeamRole(['admin'])
+  const check = await requireTeamRole(['admin', 'manager'])
   if ('error' in check) return check
   if (!loginId.trim()) return { error: 'Choose a login ID.' }
   if (!contactName.trim()) return { error: "Give this login the contact's name." }
@@ -66,7 +66,7 @@ export async function createClientLogin(
 export async function resetClientLoginPassword(
   clientLoginId: string
 ): Promise<{ password: string } | { error: string }> {
-  const check = await requireTeamRole(['admin'])
+  const check = await requireTeamRole(['admin', 'manager'])
   if ('error' in check) return check
 
   const supabase = createSupabaseServerClient()
@@ -87,7 +87,7 @@ export async function resetClientLoginPassword(
 
 /** Deactivates one login — it can no longer sign in, but its history (past comments/tickets) is untouched. */
 export async function revokeClientLogin(clientLoginId: string): Promise<{ ok: true } | { error: string }> {
-  const check = await requireTeamRole(['admin'])
+  const check = await requireTeamRole(['admin', 'manager'])
   if ('error' in check) return check
 
   const supabase = createSupabaseServerClient()
