@@ -20,7 +20,7 @@ export default async function ClientsPage() {
     supabase.from('client_logins').select('client_id').eq('is_active', true),
   ])
 
-  const canCreate = me?.role === 'admin'
+  const canCreate = me?.role === 'admin' || me?.role === 'manager'
   const total = clients?.length ?? 0
   const withManager = clients?.filter(c => c.manager_id).length ?? 0
   const clientIdsWithLogin = new Set((activeLogins ?? []).map(l => l.client_id))
@@ -129,7 +129,7 @@ export default async function ClientsPage() {
           <EmptyState
             icon={Building2}
             title="No clients yet"
-            description={canCreate ? 'Add your first client to start tracking projects and tickets for them.' : 'An admin needs to add a client before you can start tracking projects and tickets for them.'}
+            description={canCreate ? 'Add your first client to start tracking projects and tickets for them.' : 'An admin or manager needs to add a client before you can start tracking projects and tickets for them.'}
             actionLabel={canCreate ? 'Add your first client' : undefined}
             actionHref={canCreate ? '/dashboard/clients/new' : undefined}
           />

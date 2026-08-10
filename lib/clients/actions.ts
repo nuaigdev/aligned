@@ -6,13 +6,13 @@ import { requireTeamRole } from '@/lib/auth/team-role-guard'
 import { toSlug } from '@/lib/utils'
 
 /**
- * Only admins add clients — the nav/button being hidden from
- * managers and members is a UI nicety, not the boundary (RLS
- * migration 025 restricts the INSERT itself too, in case anything
- * ever calls the table directly).
+ * Admins and managers add clients — the nav/button being hidden from
+ * members is a UI nicety, not the boundary (RLS migration 046
+ * restricts the INSERT itself too, in case anything ever calls the
+ * table directly). Mirrors project creation (lib/projects/actions.ts).
  */
 export async function createClient(name: string): Promise<{ id: string } | { error: string }> {
-  const check = await requireTeamRole(['admin'])
+  const check = await requireTeamRole(['admin', 'manager'])
   if ('error' in check) return check
   if (!name.trim()) return { error: 'Give the client a name.' }
 

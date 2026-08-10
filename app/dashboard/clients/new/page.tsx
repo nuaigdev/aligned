@@ -9,8 +9,8 @@ export default async function NewClientPage() {
 
   const { data: me } = await supabase.from('team_members').select('role').eq('id', user.id).maybeSingle()
   // Server-side gate — the "New client" button is also hidden from
-  // non-admins, but that alone is not the security boundary.
-  if (me?.role !== 'admin') redirect('/dashboard/clients')
+  // plain members, but that alone is not the security boundary.
+  if (me?.role !== 'admin' && me?.role !== 'manager') redirect('/dashboard/clients')
 
   return <NewClientForm />
 }
