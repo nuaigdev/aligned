@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { ChevronDown } from 'lucide-react'
@@ -29,41 +29,42 @@ export function QuickDropdown({
   children: React.ReactNode
 }) {
   // Mounted-check for the portal target (document.body isn't available
-  // during SSR) — the outside-click catcher below is rendered there
-  // rather than in place.
+  // during SSR) — the outside-click catcher and the menu itself are both
+  // rendered there rather than in place.
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const [coords, setCoords] = useState<{ top: number; right: number } | null>(null)
+
+  useEffect(() => {
+    if (!open || !triggerRef.current) return
+    const rect = triggerRef.current.getBoundingClientRect()
+    setCoords({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+  }, [open])
+
   return (
-    <div style={{ position: 'relative' }}>
+    <div style={{ position: 'relative' }} ref={triggerRef}>
       <div onClick={e => { e.preventDefault(); e.stopPropagation(); onToggle() }}>{trigger}</div>
-      {open && (
+      {open && mounted && coords && createPortal(
         <>
-          {mounted && createPortal(
-            // Portaled to <body> rather than rendered inline: this trigger
-            // commonly sits inside a container with overflow: hidden (e.g.
-            // TicketPropertiesPanel), and a full-viewport fixed div nested
-            // inside one breaks the browser's scroll-chaining — wheel
-            // scrolling over it would silently do nothing ("frozen"
-            // scrollbar) instead of falling through to the page. Living
-            // outside that ancestor avoids the problem entirely.
-            <div onClick={e => { e.preventDefault(); e.stopPropagation(); onToggle() }} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />,
-            document.body
-          )}
+          {/* Menu portaled alongside its click-catcher, not just inline: a `position: sticky` ancestor (e.g. the ticket sidebar) creates its own stacking context, which would trap an inline menu's z-index below the catcher's. */}
+          <div onClick={e => { e.preventDefault(); e.stopPropagation(); onToggle() }} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
           <motion.div
             initial={{ opacity: 0, y: -4, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.12 }}
             onClick={e => e.stopPropagation()}
             style={{
-              position: 'absolute', top: 'calc(100% + 4px)', right: 0, minWidth: '160px', zIndex: 50,
+              position: 'fixed', top: coords.top, right: coords.right, minWidth: '160px', zIndex: 50,
               background: 'var(--bg-primary)', border: '0.5px solid var(--border-default)', borderRadius: '8px',
               boxShadow: '0 8px 20px rgba(0,0,0,0.15)', overflow: 'hidden', padding: '4px',
             }}
           >
             {children}
           </motion.div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   )
