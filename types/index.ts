@@ -85,6 +85,7 @@ export interface ClientLogin {
   id: string
   client_id: string
   contact_name: string
+  /** The person's email address (migration 049) — sign-in ID and ticket-email address in one. */
   login_id: string
   must_change_password: boolean
   is_active: boolean
@@ -92,17 +93,11 @@ export interface ClientLogin {
   created_at: string
 }
 
-export interface ClientContact {
-  id: string
-  client_id: string
-  project_id: string | null   // null = default for all projects
-  name: string
-  email: string
-  is_active: boolean
-  removed_at: string | null
-  created_at: string
-  updated_at: string
-}
+// `ClientContact` / `client_contacts` is gone from the app as of migration
+// 049 — a portal login's `login_id` is the person's email address, so
+// client_logins is now both the sign-in credential and the ticket-email
+// recipient list. The table still exists in the database but nothing
+// reads it.
 
 export interface Project {
   id: string
@@ -276,7 +271,6 @@ export interface ProjectWithClient extends Project {
 
 export interface ClientWithProjects extends Client {
   projects: Project[]
-  contacts: ClientContact[]
 }
 
 // ============================================================

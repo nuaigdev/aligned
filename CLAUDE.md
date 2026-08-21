@@ -30,7 +30,7 @@ types were all deliberately removed together.
 | Surface | Who | How accessed |
 |---|---|---|
 | `/dashboard/*` | NuAIg team | Supabase Auth (email + password), login page at `/nuaig-login` |
-| `/portal/*` | Client org | **Session login** — a client can have several independent named logins (`client_logins` table, migration 045), each its own login id + password, all seeing the same client-scoped data. The login page itself lives at the app root (`/`, `app/page.tsx` + `app/ClientLoginForm.tsx`), not under `/portal`. Session is a `jose`-signed JWT cookie carrying `{ clientId, clientLoginId }` — see `lib/auth/client-session*.ts` |
+| `/portal/*` | Client org | **Session login** — a client can have several independent named logins (`client_logins` table, migration 045), each its own email address + password, all seeing the same client-scoped data. A login's email is also where every ticket email for that client goes (migration 049) — one list, not two. The login page itself lives at the app root (`/`, `app/page.tsx` + `app/ClientLoginForm.tsx`), not under `/portal`. Session is a `jose`-signed JWT cookie carrying `{ clientId, clientLoginId }` — see `lib/auth/client-session*.ts` |
 
 The client portal is reached via one of those named logins, not a per-project token —
 there is no `portal_token` column. Login determines identity — see "Dual authorship"
@@ -162,9 +162,10 @@ behavior change.
   portal header (`PortalNotificationBell.tsx`), polled rather than
   Realtime-driven since a client login isn't a Supabase Auth session.
   Every ticket email is sent as one personalized send per recipient (never
-  a shared multi-`to` send) to the ticket's effective contact list
-  (`getTicketContactRecipients`, see Contact management below) plus a copy
-  to the client's assigned Manager (`getManagerContact`/`withManagerCopy`,
+  a shared multi-`to` send) to every active portal login on that client
+  (`getTicketClientRecipients` — a login's id *is* its email address as of
+  migration 049; see Contact management below) plus a copy to the client's
+  assigned Manager (`getManagerContact`/`withManagerCopy`,
   `lib/tickets/contacts.ts`). Every attempted send is logged to
   `ticket_emails` (migration 041), which also backs an idempotency guard —
   confirmation/resolved/closed each check for a recent send of the same
@@ -172,6 +173,10 @@ behavior change.
   guarded that way, since two distinct replies close together are
   legitimate. Nothing is logged and no DB round trip happens when
   `RESEND_API_KEY` is unset — see rule 11.
+  There is one client email that is *not* about a ticket and so is not
+  logged to `ticket_emails` (its `ticket_id` is NOT NULL): the credentials
+  mail sent when a portal login is issued or its password reset — see
+  Contact management.
 - **Closed without ever being resolved**: `sync_ticket_status_timestamps`
   (migration 006) sets `resolved_at`/`closed_at` independently, so a ticket
   can go straight from open/in_progress to closed without ever passing
@@ -199,34 +204,41 @@ The platform displays a "Desktop only" message on viewports below 768px.
 This applies to ALL routes including the portal. Do not remove the mobile
 block from `app/layout.tsx`.
 
-### Contact management
+### Contact management — a login IS the contact (migration 049)
 
-Contacts exist at two levels:
-1. **Client level** (`project_id = null`) — default contacts inherited by all projects
-2. **Project level** (`project_id = <id>`) — additions for a specific project
+**`client_logins.login_id` holds the person's email address.** One row is
+simultaneously (a) the portal sign-in credential, (b) the display name on
+whatever that login authors, and (c) the address every ticket email for
+that client is sent to. There is exactly one list, so "who can see this"
+and "who gets told about this" cannot drift apart.
 
-`client_contacts` now serves one purpose only: the recipient list for ticket
-email (`lib/email/index.ts`). It is no longer read for portal identity —
-that's `client_logins` now (see Access model and Dual authorship above).
-When resolving who should be emailed about a ticket, use the project's
-*effective* contact list (client defaults + project-specific additions for
-that ticket's project) — not just the client-level defaults.
+`getTicketClientRecipients(supabase, clientId)` in `lib/tickets/contacts.ts`
+is the single resolver — every client-facing email goes through it, plus
+`withManagerCopy()` for the client's assigned Manager. It's client-wide,
+deliberately not project-scoped: every login already sees every one of the
+client's tickets in the portal, so narrowing the email below the access
+would be arbitrary. A login whose `login_id` predates 049 (a slug, not an
+address) is skipped rather than handed to Resend as a certain bounce.
 
-### Client logins vs. client contacts — don't conflate these
+Consequence to keep in mind: **a person with no login gets no email.** To
+add someone to the notification list, issue them a login.
 
-Two separate tables with two separate jobs:
-- **`client_logins`** (migration 045) — who can sign into the portal. Each row
-  is a real credential (login id + password hash), admin-managed from the
-  client detail page's "Manager & portal access" panel
-  (`ClientAccessManager.tsx` / `lib/clients/access-actions.ts`). This is the
-  security boundary, and also now supplies the display name attached to
-  whatever that login authors.
-- **`client_contacts`** — who gets emailed about a ticket. Not a login, not
-  a security boundary, just an address book.
+**`client_contacts` is retired.** It was the old recipient list — a second,
+separately managed address book that let a person hold a login and receive
+nothing, or receive mail with no way to sign in and reply. As of 049 nothing
+in the app reads it; `ContactsManager.tsx`, `lib/clients/contacts-actions.ts`,
+and the `ClientContact` type were deleted. The table itself is still in the
+database (only so its addresses can be referenced while logins are issued for
+the people who need them) — dropping it is a separate, explicit decision, not
+something to do incidentally.
 
-A client contact does not automatically get a portal login, and a portal
-login's `contact_name` isn't synced from `client_contacts` — they're
-independently managed on the same client detail page.
+Issuing or resetting a login emails the credentials to that address
+(`sendClientLoginCredentialsEmail`); `must_change_password` is true on both
+paths and middleware forces the change at `/portal/change-password`, so the
+temp password in the inbox dies on first use. The on-screen one-time reveal
+in `ClientAccessManager.tsx` is still the fallback for when the send didn't
+happen — the action returns `emailed: boolean` precisely so the issuing admin
+knows which case they're in. Don't remove that reveal.
 
 ---
 
@@ -268,18 +280,20 @@ NEXTAUTH_SECRET=              ← signs the client portal session JWT (lib/auth/
 
 The migrations folder is one clean, dependency-ordered sequence: `001` built the
 original schema (team/roles → clients/login → projects → tickets → notifications/
-settings → RLS → storage), and `020`–`045` are incremental changes on top of it
+settings → RLS → storage), and `020`–`049` are incremental changes on top of it
 (RBAC tightening, ticket types, project membership, ticket search, removing the
 Milestones/Decisions/Approvals schema the product no longer has as of `040`, a
-ticket email audit/idempotency log as of `041`, and the single shared client login
-replaced by multiple independent named `client_logins` as of `045`).
+ticket email audit/idempotency log as of `041`, the single shared client login
+replaced by multiple independent named `client_logins` as of `045`, and those
+logins becoming email addresses — and therefore the sole ticket-email recipient
+list, retiring `client_contacts` — as of `049`).
 Chronos's conventions are followed throughout: `CREATE TABLE IF NOT EXISTS`, `DROP
 POLICY IF EXISTS` before every `CREATE POLICY`, enum creation wrapped in `DO $$ ...
 EXCEPTION WHEN duplicate_object`, one `SECURITY DEFINER STABLE` helper per reusable RLS
 predicate. This assumes a **fresh Supabase project** — there is no migration path from
 the old schema, and none is needed (no prior production data to preserve).
 
-Run `supabase/migrations/001` through `045` **in order** in the Supabase SQL
+Run `supabase/migrations/001` through `049` **in order** in the Supabase SQL
 editor (or via the CLI). The storage bucket (`project-documents`) and its access
 policies are created **live by migration `019`** — no manual dashboard step needed.
 (Migration `019` also created a `signed-records` bucket for a PDF export that was
@@ -294,10 +308,13 @@ Supabase Auth signup isn't scriptable from a migration):
 
 To issue a client's portal login(s), use the "Manager & portal access" panel on
 that client's dashboard page (`app/dashboard/clients/[clientId]/ClientAccessManager.tsx`)
-— each named login gets its own login id + one-time password, generated
-server-side (`lib/clients/access-actions.ts`), never in the browser. A client
-can have any number of these (e.g. one per contact); each is independent and
-all see the same client-scoped portal data.
+— each named login is an email address + a one-time password generated
+server-side (`lib/clients/access-actions.ts`), never in the browser, and
+emailed to that address when `RESEND_API_KEY` is set (with the one-time
+on-screen reveal as the fallback when it isn't). A client can have any number
+of these — one per person who needs either portal access or ticket email,
+which since migration 049 are the same thing; each is independent and all see
+the same client-scoped portal data.
 
 ---
 
@@ -322,8 +339,9 @@ app/
         page.tsx / TicketDetail.tsx / TicketComments.tsx / TicketPropertiesPanel.tsx / TicketAttachments.tsx
     clients/                 ← Client list + client detail
       [clientId]/
-        ContactsManager.tsx       ← Client contacts (email recipients, not portal logins)
-        ClientAccessManager.tsx  ← Manager picker + multi-login management (client_logins)
+        ClientAccessManager.tsx  ← Manager picker + multi-login management (client_logins).
+                                    A login's email is also the ticket-email recipient —
+                                    there is no separate contacts panel (migration 049).
     projects/
       [projectId]/
         page.tsx                   ← Project hub: ticket stats + team + embedded board
@@ -359,12 +377,12 @@ lib/
   tickets/
     team-actions.ts        ← Server Actions: dashboard-side ticket CRUD (RLS-governed), searchTickets
     portal-actions.ts      ← Server Actions: client-side ticket create/comment (service role + manual client_id + client_logins.is_active checks)
-    contacts.ts             ← getTicketContactRecipients / getManagerContact / withManagerCopy — shared ticket-email recipient resolution
+    contacts.ts             ← getTicketClientRecipients / getManagerContact / withManagerCopy — shared ticket-email recipient resolution (reads client_logins)
   projects/
     actions.ts             ← createProject (auto-adds creator as first project_member) / deleteProject
     members-actions.ts     ← addProjectMember / removeProjectMember (RLS: can_manage_project_members)
     scope.ts                ← getMyProjectScope / scopeProjectsQuery — shared "my projects" display filter (Overview + Projects list)
-  clients/access-actions.ts  ← Manager assignment + per-login credential create/reset/revoke (client_logins)
+  clients/access-actions.ts  ← Manager assignment + per-login credential create/reset/revoke (client_logins); emails the credentials, returns `emailed`
   notifications/create.ts   ← createTicketNotifications / getActorName / createClientNotification
   email/index.ts          ← Resend helpers (ticket confirmation/reply/resolved) — lazy client, no-ops if RESEND_API_KEY unset
   utils/index.ts           ← Formatting, helpers, ticket status/priority config
@@ -378,13 +396,13 @@ middleware.ts             ← Auth guard for /dashboard (Supabase session, login
 ## What is built vs TODO
 
 ### Built
-- [x] Database schema — full rebuild, `001`–`041`, fresh-project ready (see Database setup)
+- [x] Database schema — full rebuild, `001`–`049`, fresh-project ready (see Database setup)
 - [x] TypeScript types
 - [x] Supabase client helpers (browser, server, service role)
 - [x] Team auth middleware (Supabase Auth) + client portal session middleware (JWT)
 - [x] Mobile block
 - [x] Team login page
-- [x] Client portal login (session-based, canonical URL is `/`) — multiple independent named logins per client (`client_logins`, migration 045)
+- [x] Client portal login (session-based, canonical URL is `/`) — multiple independent named logins per client (`client_logins`, migration 045), each keyed on the person's email address, which is also their ticket-email recipient address (migration 049)
 - [x] Dashboard layout + sidebar (incl. Tickets nav + notification bell)
 - [x] Dashboard overview page
 - [x] Clients list + client detail (contacts, Manager picker, portal login issuance)
@@ -506,7 +524,7 @@ canonical source for these — use them rather than re-declaring the mapping.)
    handle both — don't assume every row has a team-member author.
 
 10. **New migrations continue the `NNN_description.sql` sequence** (currently
-    through `045`) — one concern per file, idempotent (`IF NOT EXISTS`,
+    through `049`) — one concern per file, idempotent (`IF NOT EXISTS`,
     `DROP POLICY IF EXISTS` before `CREATE POLICY`), and any RLS predicate
     used by more than one table extracted into its own `SECURITY DEFINER
     STABLE` SQL function first. Don't go back and edit an already-numbered

@@ -6,7 +6,7 @@ import { setClientSessionCookie, clearClientSessionCookie } from '@/lib/auth/cli
 
 export async function loginClient(loginId: string, password: string): Promise<{ error?: string }> {
   if (!loginId.trim() || !password) {
-    return { error: 'Enter your login ID and password.' }
+    return { error: 'Enter your email and password.' }
   }
 
   const supabase = createServiceRoleClient()
@@ -17,12 +17,12 @@ export async function loginClient(loginId: string, password: string): Promise<{ 
     .maybeSingle()
 
   if (!login?.password_hash || !login.is_active) {
-    return { error: 'Invalid login ID or password.' }
+    return { error: 'Invalid email or password.' }
   }
 
   const valid = await verifyPassword(password, login.password_hash)
   if (!valid) {
-    return { error: 'Invalid login ID or password.' }
+    return { error: 'Invalid email or password.' }
   }
 
   await supabase

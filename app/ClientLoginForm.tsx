@@ -24,7 +24,7 @@ const FEATURES: AuthFeature[] = [
   {
     icon: Users,
     title: 'One portal, your whole team',
-    body: 'Everyone on your team gets their own login and sees the exact same live view of every ticket.',
+    body: 'Everyone on your team signs in with their own email and sees the exact same live view of every ticket.',
   },
   {
     icon: ShieldCheck,
@@ -115,15 +115,16 @@ export default function ClientLoginForm() {
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div>
               <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '5px' }}>
-                Login ID
+                Email
               </label>
               <input
-                type="text"
+                type="email"
                 required
                 autoFocus
+                autoComplete="username"
                 value={loginId}
                 onChange={e => setLoginId(e.target.value)}
-                placeholder="e.g. nexus-co-jane"
+                placeholder="you@company.com"
                 style={{
                   width: '100%',
                   padding: '9px 12px',

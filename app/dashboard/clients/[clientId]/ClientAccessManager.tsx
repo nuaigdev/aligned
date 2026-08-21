@@ -13,7 +13,7 @@ const inputStyle: React.CSSProperties = {
   fontSize: '13px', color: 'var(--text-primary)', outline: 'none', boxSizing: 'border-box', background: 'var(--bg-primary)',
 }
 
-type RevealedCredential = { loginId: string; contactName: string; password: string }
+type RevealedCredential = { loginId: string; contactName: string; password: string; emailed: boolean }
 
 export default function ClientAccessManager({
   clientId,
@@ -29,7 +29,7 @@ export default function ClientAccessManager({
   const [managerId, setManagerId] = useState(currentManagerId ?? '')
   const [logins, setLogins] = useState(initialLogins)
   const [contactName, setContactName] = useState('')
-  const [newLoginId, setNewLoginId] = useState('')
+  const [newEmail, setNewEmail] = useState('')
   const [revealed, setRevealed] = useState<RevealedCredential | null>(null)
   const [copiedPassword, setCopiedPassword] = useState(false)
   const [urlCopied, setUrlCopied] = useState(false)
@@ -49,23 +49,24 @@ export default function ClientAccessManager({
 
   async function handleCreate() {
     if (!contactName.trim()) return toast.error("Give this login the contact's name")
-    if (!newLoginId.trim()) return toast.error('Choose a login ID first')
+    if (!newEmail.trim()) return toast.error("Enter the contact's email address first")
     setCreating(true)
-    const result = await createClientLogin(clientId, newLoginId, contactName)
+    const result = await createClientLogin(clientId, newEmail, contactName)
     setCreating(false)
 
     if ('error' in result) {
       toast.error(result.error)
       return
     }
-    setRevealed({ loginId: newLoginId.trim().toLowerCase(), contactName: contactName.trim(), password: result.password })
+    const email = newEmail.trim().toLowerCase()
+    setRevealed({ loginId: email, contactName: contactName.trim(), password: result.password, emailed: result.emailed })
     setLogins(prev => [
       ...prev,
       {
         id: `pending-${Date.now()}`,
         client_id: clientId,
         contact_name: contactName.trim(),
-        login_id: newLoginId.trim().toLowerCase(),
+        login_id: email,
         must_change_password: true,
         is_active: true,
         last_login_at: null,
@@ -73,8 +74,8 @@ export default function ClientAccessManager({
       },
     ])
     setContactName('')
-    setNewLoginId('')
-    toast.success('Login created')
+    setNewEmail('')
+    toast.success(result.emailed ? `Login created — credentials emailed to ${email}` : 'Login created')
   }
 
   async function handleReset(login: ClientLogin) {
@@ -85,8 +86,8 @@ export default function ClientAccessManager({
       toast.error(result.error)
       return
     }
-    setRevealed({ loginId: login.login_id, contactName: login.contact_name, password: result.password })
-    toast.success('Password reset')
+    setRevealed({ loginId: login.login_id, contactName: login.contact_name, password: result.password, emailed: result.emailed })
+    toast.success(result.emailed ? `Password reset — emailed to ${login.login_id}` : 'Password reset')
   }
 
   async function handleRevoke(login: ClientLogin) {
@@ -135,6 +136,10 @@ export default function ClientAccessManager({
         <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
           Portal logins — one per named contact, all seeing the same tickets
         </div>
+        <p style={{ fontSize: '11px', color: 'var(--text-tertiary)', marginBottom: '10px' }}>
+          Each person signs in with their email, and every ticket update for this client
+          is emailed to that same address. Someone with no login here gets no email.
+        </p>
 
         {logins.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '14px' }}>
@@ -181,8 +186,8 @@ export default function ClientAccessManager({
             <input value={contactName} onChange={e => setContactName(e.target.value)} placeholder="e.g. Jane Cho" style={inputStyle} />
           </div>
           <div style={{ flex: 1 }}>
-            <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Login ID</label>
-            <input value={newLoginId} onChange={e => setNewLoginId(e.target.value)} placeholder="e.g. nexus-co-jane" style={inputStyle} />
+            <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>Email</label>
+            <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="e.g. jane@nexus.co" style={inputStyle} />
           </div>
           <button
             onClick={handleCreate}
@@ -202,7 +207,9 @@ export default function ClientAccessManager({
               style={{ background: 'var(--warning-bg)', borderRadius: '8px', padding: '10px 12px', marginTop: '4px' }}
             >
               <div style={{ fontSize: '11px', color: 'var(--warning-text)', marginBottom: '4px' }}>
-                One-time password for {revealed.contactName} ({revealed.loginId}) — share this now, it won't be shown again
+                {revealed.emailed
+                  ? `Emailed to ${revealed.contactName} at ${revealed.loginId}. Here it is too, in case they need it read out — it won't be shown again.`
+                  : `One-time password for ${revealed.contactName} (${revealed.loginId}) — nothing was emailed, so share this now. It won't be shown again.`}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                 <code style={{ flex: 1, fontSize: '14px', fontFamily: 'monospace', color: 'var(--text-primary)' }}>{revealed.password}</code>

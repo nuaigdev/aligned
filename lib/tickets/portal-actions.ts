@@ -5,7 +5,7 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { requireClientSession } from '@/lib/portal/session-guard'
 import { createTicketNotifications } from '@/lib/notifications/create'
 import { sendTicketConfirmationEmail } from '@/lib/email/index'
-import { getTicketContactRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
+import { getTicketClientRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
 import { ticketClientCode } from '@/lib/utils'
 
 /**
@@ -113,11 +113,11 @@ export async function createPortalTicket(input: {
     )
   }
 
-  // Email confirmation to the ticket's effective contact list (client
-  // defaults + this project's additions), plus a copy to the client's
-  // assigned Manager.
+  // Email confirmation to every active portal login on this client (their
+  // login id is their address — migration 049), plus a copy to the
+  // client's assigned Manager.
   const [contacts, manager] = await Promise.all([
-    getTicketContactRecipients(supabase, session.clientId, input.project_id || null),
+    getTicketClientRecipients(supabase, session.clientId),
     getManagerContact(supabase, client?.manager_id),
   ])
 

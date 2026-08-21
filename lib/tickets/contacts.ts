@@ -5,45 +5,51 @@ export interface TicketEmailRecipient {
   email: string
 }
 
+/** Rejects an obviously-unsendable address before it reaches Resend. */
+export const EMAIL_PATTERN = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
 /**
- * The effective contact list for emailing about a ticket — client-level
- * defaults union project-level additions for the ticket's own project (if
- * it has one). Mirrors CLAUDE.md's Contact management rule; the two
- * previous call sites (team-actions.ts, portal-actions.ts) each only ever
- * looked at client-level defaults, silently missing anyone added for a
- * specific project.
+ * Who gets emailed about a ticket on the client's side: every active
+ * portal login for that client.
+ *
+ * Since migration 049 a login's `login_id` *is* the person's email
+ * address, which makes client_logins the single source of truth for both
+ * "who can sign in" and "who gets told about a ticket" — the two can no
+ * longer drift apart. The old source, `client_contacts`, was a second
+ * separately managed list and is no longer read anywhere (see that
+ * migration's header).
+ *
+ * Note this is client-wide, not project-scoped: every login already sees
+ * every one of the client's tickets in the portal, so scoping the email
+ * narrower than the access would be arbitrary.
  */
-export async function getTicketContactRecipients(
+export async function getTicketClientRecipients(
   supabase: SupabaseClient,
-  clientId: string,
-  projectId: string | null
+  clientId: string
 ): Promise<TicketEmailRecipient[]> {
-  let query = supabase
-    .from('client_contacts')
-    .select('name, email')
+  const { data } = await supabase
+    .from('client_logins')
+    .select('contact_name, login_id')
     .eq('client_id', clientId)
     .eq('is_active', true)
 
-  query = projectId
-    ? query.or(`project_id.is.null,project_id.eq.${projectId}`)
-    : query.is('project_id', null)
-
-  const { data } = await query
-
   const seen = new Set<string>()
   const recipients: TicketEmailRecipient[] = []
-  for (const c of data ?? []) {
-    const key = c.email.toLowerCase()
-    if (seen.has(key)) continue
-    seen.add(key)
-    recipients.push({ name: c.name, email: c.email })
+  for (const login of data ?? []) {
+    const email = login.login_id.toLowerCase()
+    // A login issued before migration 049 holds a slug, not an address —
+    // there is nothing to send to, so skip it rather than handing Resend
+    // a guaranteed bounce.
+    if (!EMAIL_PATTERN.test(email) || seen.has(email)) continue
+    seen.add(email)
+    recipients.push({ name: login.contact_name, email })
   }
   return recipients
 }
 
 /**
  * The client's assigned Manager, if active — gets a copy of every ticket
- * email sent to that client's contacts (a team member with a real inbox,
+ * email sent to that client's logins (a team member with a real inbox,
  * not just the in-app notification they already get).
  */
 export async function getManagerContact(
@@ -60,7 +66,7 @@ export async function getManagerContact(
   return { name: data.name, email: data.email }
 }
 
-/** Contacts plus the client's Manager (if any), deduplicated by email. */
+/** Client logins plus the client's Manager (if any), deduplicated by email. */
 export function withManagerCopy(
   contacts: TicketEmailRecipient[],
   manager: TicketEmailRecipient | null

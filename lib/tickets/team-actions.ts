@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createSupabaseServerClient, createServiceRoleClient } from '@/lib/supabase/server'
 import { createTicketNotifications, getActorName, createClientNotification } from '@/lib/notifications/create'
 import { sendTicketConfirmationEmail, sendTicketReplyEmail, sendTicketResolvedEmail, sendTicketClosedEmail } from '@/lib/email/index'
-import { getTicketContactRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
+import { getTicketClientRecipients, getManagerContact, withManagerCopy } from '@/lib/tickets/contacts'
 import { ticketClientCode } from '@/lib/utils'
 import type { CreateTicketInput, TicketStatus, TicketPriority, TicketType } from '@/types'
 
@@ -81,7 +81,7 @@ export async function createTicket(
   // themselves, so the copy frames it as "logged for you", not "thanks".
   if (ticketType === 'client') {
     const [contacts, manager] = await Promise.all([
-      getTicketContactRecipients(supabase, project.client_id, input.project_id),
+      getTicketClientRecipients(supabase, project.client_id),
       getManagerContact(supabase, client?.manager_id),
     ])
     await sendTicketConfirmationEmail({
@@ -178,7 +178,7 @@ export async function updateTicket(
 
         if (isClientVisible && patch.status === 'resolved') {
           const [contacts, manager] = await Promise.all([
-            getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+            getTicketClientRecipients(supabase, ticket.client_id),
             getManagerContact(supabase, clientMeta?.manager_id),
           ])
           await sendTicketResolvedEmail({
@@ -198,7 +198,7 @@ export async function updateTicket(
           // resolved first, they already got that email; a second one for
           // the same ticket would just be noise.
           const [contacts, manager] = await Promise.all([
-            getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+            getTicketClientRecipients(supabase, ticket.client_id),
             getManagerContact(supabase, clientMeta?.manager_id),
           ])
           await sendTicketClosedEmail({
@@ -218,7 +218,7 @@ export async function updateTicket(
       // confirmation a brand-new ticket gets.
       if (becameClientVisible) {
         const [contacts, manager] = await Promise.all([
-          getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+          getTicketClientRecipients(supabase, ticket.client_id),
           getManagerContact(supabase, clientMeta?.manager_id),
         ])
         await sendTicketConfirmationEmail({
@@ -345,7 +345,7 @@ export async function postTicketComment(
       const clientMeta = ticket.clients as any
       const clientCode = clientMeta?.slug ? ticketClientCode(clientMeta.slug) : undefined
       const [contacts, manager] = await Promise.all([
-        getTicketContactRecipients(supabase, ticket.client_id, ticket.project_id),
+        getTicketClientRecipients(supabase, ticket.client_id),
         getManagerContact(supabase, clientMeta?.manager_id),
       ])
       await sendTicketReplyEmail({

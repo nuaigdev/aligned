@@ -35,6 +35,66 @@ async function sendEmail(payload: Parameters<Resend['emails']['send']>[0]): Prom
   return { ok: true }
 }
 
+// ── Portal access: credentials for a new or reset login ────────
+// Deliberately not routed through sendTicketEventEmails / ticket_emails —
+// this isn't about a ticket, and ticket_emails.ticket_id is NOT NULL.
+// Returns its result (rather than swallowing it) so the issuing admin is
+// told whether the person actually got the mail or still needs the
+// on-screen one-time password relayed to them by hand.
+//
+// The temp password travels in the body on purpose: `must_change_password`
+// is true on both of these paths and middleware forces the change at
+// /portal/change-password on first use, so what's in the inbox stops
+// working the moment it's used once.
+export async function sendClientLoginCredentialsEmail({
+  contactName,
+  clientName,
+  loginEmail,
+  password,
+  kind,
+}: {
+  contactName: string
+  clientName: string
+  loginEmail: string
+  password: string
+  kind: 'created' | 'reset'
+}): Promise<{ ok: boolean; error?: string }> {
+  const url = portalUrl('/')
+  const created = kind === 'created'
+  const heading = created ? 'Your NuAIg Assist portal login' : 'Your password has been reset'
+  const intro = created
+    ? `An account has been set up for you on the NuAIg Assist portal, where you can raise tickets for ${clientName} and follow them through to resolution.`
+    : `The password on your NuAIg Assist portal login for ${clientName} has been reset. Here's the new one.`
+
+  return sendEmail({
+    from: FROM,
+    to: loginEmail,
+    subject: created ? 'Your NuAIg Assist portal login' : 'Your NuAIg Assist password has been reset',
+    html: `
+      <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
+        <p style="font-size: 13px; color: #888; margin-bottom: 24px;">NuAIg Assist</p>
+        <h1 style="font-size: 20px; font-weight: 600; margin-bottom: 8px;">${heading}</h1>
+        <p style="font-size: 14px; color: #444; margin-bottom: 16px;">Hi ${contactName}, ${intro}</p>
+        <div style="background: #f9f9f8; border: 1px solid #eee; border-radius: 8px; padding: 16px 20px; margin-bottom: 20px;">
+          <p style="font-size: 12px; color: #888; margin: 0 0 4px;">Email</p>
+          <p style="font-size: 14px; font-family: monospace; color: #1a1a1a; margin: 0 0 12px;">${loginEmail}</p>
+          <p style="font-size: 12px; color: #888; margin: 0 0 4px;">${created ? 'Temporary password' : 'New temporary password'}</p>
+          <p style="font-size: 16px; font-family: monospace; color: #1a1a1a; margin: 0;">${password}</p>
+        </div>
+        <p style="font-size: 13px; color: #666; margin-bottom: 20px;">
+          You'll be asked to choose your own password the first time you sign in, so this one stops working straight after.
+        </p>
+        <a href="${url}" style="display: inline-block; background: #ea580c; color: #fff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; font-weight: 500;">
+          Sign in →
+        </a>
+        <p style="font-size: 12px; color: #999; margin-top: 24px;">
+          Ticket updates for ${clientName} — new tickets, replies, and resolutions — are sent to this address.
+        </p>
+      </div>
+    `,
+  })
+}
+
 type TicketEmailKind = 'confirmation' | 'reply' | 'resolved' | 'closed'
 
 // Guards confirmation/resolved/closed against a double-fire (a double-click,
@@ -111,8 +171,9 @@ async function sendTicketEventEmails({
   await logTicketEmail(ticketId, kind, results)
 }
 
-// ── Ticket: confirmation to the client's contacts on creation ──
-// Recipients here are the effective contact list plus, per product
+// ── Ticket: confirmation to the client's logins on creation ──
+// Recipients here are every active portal login on the client (their
+// login id is their email address — migration 049) plus, per product
 // decision, a copy to the client's assigned Manager.
 export async function sendTicketConfirmationEmail({
   recipients,

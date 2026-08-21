@@ -2,12 +2,10 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import { formatDate } from '@/lib/utils'
 import Link from 'next/link'
-import ContactsManager from './ContactsManager'
 import ClientAccessManager from './ClientAccessManager'
 import EditClientModal from './EditClientModal'
 import DeleteConfirmButton from '@/components/dashboard/DeleteConfirmButton'
 import { deleteClient } from '@/lib/clients/actions'
-import type { ClientContact } from '@/types'
 
 const STATUS_DOT: Record<string, string> = {
   active: '#3B6D11', awaiting_client: '#BA7517', awaiting_team: '#185FA5',
@@ -24,26 +22,12 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
   const supabase = createSupabaseServerClient()
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [{ data: client }, { data: activeContacts }, { data: formerContacts }, { data: managers }, { count: ticketCount }, { data: me }, { data: logins }] = await Promise.all([
+  const [{ data: client }, { data: managers }, { count: ticketCount }, { data: me }, { data: logins }] = await Promise.all([
     supabase
       .from('clients')
       .select('*, projects(id, name, status, started_at, updated_at)')
       .eq('id', params.clientId)
       .single(),
-    supabase
-      .from('client_contacts')
-      .select('*')
-      .eq('client_id', params.clientId)
-      .is('project_id', null)
-      .eq('is_active', true)
-      .order('name'),
-    supabase
-      .from('client_contacts')
-      .select('*')
-      .eq('client_id', params.clientId)
-      .is('project_id', null)
-      .eq('is_active', false)
-      .order('removed_at', { ascending: false }),
     supabase
       .from('team_members')
       .select('*')
@@ -70,7 +54,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
   const isAdmin = me?.role === 'admin'
   // Manager & portal access panel (manager assignment + login credentials)
   // is open to managers too, per product decision — see migration 048.
-  // Contacts and client deletion stay admin-only (isAdmin), unchanged.
+  // Client deletion stays admin-only (isAdmin), unchanged.
   const canManageAccess = canCreateProject
 
   return (
@@ -197,13 +181,9 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
         )}
       </div>
 
-      {/* Contacts — managed by client component */}
-      <ContactsManager
-        clientId={params.clientId}
-        contacts={(activeContacts ?? []) as ClientContact[]}
-        formerContacts={(formerContacts ?? []) as ClientContact[]}
-        canManage={isAdmin}
-      />
+      {/* There is no separate contacts panel: since migration 049 a portal
+          login IS the email address we send ticket updates to, so the
+          Access panel above is the one and only recipient list. */}
 
       {/* Danger zone */}
       {isAdmin && (
@@ -221,7 +201,7 @@ export default async function ClientDetailPage({ params }: { params: { clientId:
             <DeleteConfirmButton
               entityLabel="client"
               confirmText={client.name}
-              cascadeWarning={`This permanently deletes ${projects.length} project(s), ${ticketCount ?? 0} ticket(s), and all contacts and documents for ${client.name}.`}
+              cascadeWarning={`This permanently deletes ${projects.length} project(s), ${ticketCount ?? 0} ticket(s), and all portal logins and documents for ${client.name}.`}
               action={deleteClient}
               entityId={client.id}
               redirectTo="/dashboard/clients"
